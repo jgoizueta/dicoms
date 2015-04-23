@@ -1,0 +1,11 @@
+GEM
+  specs:
+    dicom (0.9.6)
+    rmagick (2.14.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  dicom
+  rmagick
