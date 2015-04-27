@@ -10,9 +10,6 @@ class DicomPack
 
     if @settings.image_processor
       DICOM.image_processor = @settings.image_processor.to_sym
-      if DICOM.image_processor == :mini_magick
-        raise "Need to make MiniMagick return JPGs, not PNGs"
-      end
     end
 
     @ffmpeg_options = { 'ffmpeg' => @settings.ffmpeg }
@@ -56,7 +53,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
-      d.image.normalize.write(output_image)
+      save_jpg d, output_image
     end
     metadata.nz = n
     metadata.dz = (last_z - first_z)/(n-1)
@@ -114,6 +111,14 @@ class DicomPack
   end
 
   private
+
+  def save_jpg(dicom, output_image)
+    if DICOM.image_processor == :mini_magick
+      d.image.normalize.format('jpg').write(output_image)
+    else
+      d.image.normalize.write(output_image)
+    end
+  end
 
   METADATA_TYPES = {
     dx: :to_f, dy: :to_f, dz: :to_f,
