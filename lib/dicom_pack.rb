@@ -56,7 +56,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
-      #d.image.normalize.write(output_image)
+      d.image.normalize.write(output_image)
     end
     metadata.nz = n
     metadata.dz = (last_z - first_z)/(n-1)
