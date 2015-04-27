@@ -1,11 +1,20 @@
 GEM
+  remote: https://rubygems.org/
   specs:
     dicom (0.9.6)
+    modalsettings (1.0.1)
+      modalsupport (>= 0.8.1)
+    modalsupport (0.9.2)
+    os (0.9.6)
     rmagick (2.14.0)
+    sys_cmd (0.2.1)
+      os (~> 0.9.6)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
   dicom
+  modalsettings
   rmagick
+  sys_cmd (>= 0.2.1)
