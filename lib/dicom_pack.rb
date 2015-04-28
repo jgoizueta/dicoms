@@ -2,6 +2,7 @@ require 'fileutils'
 require 'dicom'
 require 'modalsettings'
 require 'sys_cmd'
+require 'narray'
 
 class DicomPack
 
@@ -18,6 +19,59 @@ class DicomPack
   end
 
   attr_reader :settings
+
+  # remap the dicom values of a set of images to maximize dynaic range
+  # and avoid negative values
+  # options:
+  # * :level - apply window leveling
+  # * :drop_base_level - remove lowest level (only if not doing window leveling)
+  # TODO: use the same mapping for all images!
+  def remap(dicom_directory, options = {})
+
+    dicom_files = Dir.glob(File.join(dicom_directory, '*.dcm'))
+    if dicom_files.empty?
+      puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
+    end
+
+    # TODO: do we need to sort dicom_files?
+
+    output_dir = options[:output] || (dicom_directory+'_remapped')
+    FileUtils.mkdir_p output_dir
+
+    if options[:level]
+      options = options.merge(drop_base_level: false)
+    end
+
+    dicom_files.each do |file|
+      d = DICOM::DObject.read(file)
+
+      signed = d.send(:signed_pixels?)
+      if d.bits_stored.value.to_i == 16
+        default_max = signed ? 32767 : 65525
+      else
+        default_max = signed ? 127 : 255
+      end
+      output_max = options[:max] || default_max
+      output_min = options[:min] || 0
+
+      if options[:level]
+        # apply window leveling
+        data = d.narray(level: true)
+      else
+        data = d.narray
+      end
+
+      data = optimize_dynamic_range(data, output_min, output_max, options)
+
+      d.window_center = (output_max + output_min) / 2
+      d.window_width = (output_max - output_min)
+      d.pixels = data
+
+      output_file = File.join(output_dir, File.basename(file))
+      d.write output_file
+      break
+    end
+  end
 
   def pack(dicom_directory, options = {})
 
@@ -53,7 +107,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
-      save_jpg d, output_image
+      save_jpg d, output_image, options
     end
     metadata.nz = n
     metadata.dz = (last_z - first_z)/(n-1)
@@ -112,12 +166,41 @@ class DicomPack
 
   private
 
-  def save_jpg(dicom, output_image)
-    if DICOM.image_processor == :mini_magick
-      dicom.image.normalize.format('jpg').write(output_image)
+  def optimize_dynamic_range(data, output_min, output_max, options = {})
+    v0 = data.min
+    maximum = data.max
+    if options[:drop_base_level]
+      minimum = maximum
+      data.each { |v| minimum = [v, minimum].min if v > v0 }
     else
-      dicom.image.normalize.write(output_image)
+      minimum = v0
     end
+    r = (maximum - minimum).to_f
+
+    data[data <= v0] = minimum if v0 < minimum
+    data -= minimum
+    data *= (output_max - output_min)/r
+    data += output_min
+    data
+  end
+
+  def save_jpg(dicom, output_image, options = {})
+    # TODO: options to optimize dynamic rage, drop base level;
+    image_options = { narray: true }
+    if options[:level]
+      image_options[:level] = true
+    end
+    if options[:optimize]
+      data = optimize_dynamic_range(dicom.narray(image_options), 0, 255, options)
+      image.pixels = data
+      image = dicom.image
+    else
+      image = dicom.image(options).normalize
+    end
+    if DICOM.image_processor == :mini_magick
+      image.format('jpg')
+    end
+    image.write(output_image)
   end
 
   METADATA_TYPES = {
