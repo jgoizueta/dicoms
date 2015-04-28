@@ -25,7 +25,6 @@ class DicomPack
   # options:
   # * :level - apply window leveling
   # * :drop_base_level - remove lowest level (only if not doing window leveling)
-  # TODO: use the same mapping for all images!
   def remap(dicom_directory, options = {})
 
     dicom_files = Dir.glob(File.join(dicom_directory, '*.dcm'))
@@ -40,6 +39,34 @@ class DicomPack
 
     if options[:level]
       options = options.merge(drop_base_level: false)
+    end
+
+    if options[:first_range] || options[:level]
+      # will use the range of the first image for all of them
+      range = nil
+    else
+      # will compute the actual range of all the images
+      v0 = minimum = maximum = nil
+      dicom_files.each do |file|
+        d = DICOM::DObject.read(file)
+        # TODO: level8 options that applies level and normalizes to 0-255
+        # but avoids normalization (just offsets) if the range is already < 255
+        if options[:level]
+          # apply window leveling
+          data = d.narray(level: true)
+        else
+          data = d.narray
+        end
+        d_v0, d_min, d_max = data_range(d, data, options)
+        v0 ||= d_v0
+        minimum ||= d_min
+        maximum ||= d_max
+        v0 = d_v0 if v0 > d_v0
+        minimum = d_min if minimum > d_min
+        maximum = d_max if maximum < d_max
+      end
+      range = [v0, minimum, maximum]
+      puts "RANGE: #{range.inspect}"
     end
 
     dicom_files.each do |file|
@@ -61,7 +88,8 @@ class DicomPack
         data = d.narray
       end
 
-      data = optimize_dynamic_range(data, output_min, output_max, options)
+      range ||= data_range(d, data, options)
+      data = optimize_dynamic_range(d, data, output_min, output_max, options.merge(range: range))
 
       d.window_center = (output_max + output_min) / 2
       d.window_width = (output_max - output_min)
@@ -69,7 +97,6 @@ class DicomPack
 
       output_file = File.join(output_dir, File.basename(file))
       d.write output_file
-      break
     end
   end
 
@@ -107,6 +134,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
+      # TODO: range optimization should be done with the same parameters for all files...
       save_jpg d, output_image, options
     end
     metadata.nz = n
@@ -166,7 +194,14 @@ class DicomPack
 
   private
 
-  def optimize_dynamic_range(data, output_min, output_max, options = {})
+  def data_range(dicom, data, options = {})
+    if options[:level]
+      center = dicom.window_center.value.to_i
+      width  = dicom.window_width.value.to_i
+      low = center - width/2
+      high = center + width/2
+      return [low, low, high]
+    end
     v0 = data.min
     maximum = data.max
     if options[:drop_base_level]
@@ -174,6 +209,15 @@ class DicomPack
       data.each { |v| minimum = [v, minimum].min if v > v0 }
     else
       minimum = v0
+    end
+    [v0, minimum, maximum]
+  end
+
+  def optimize_dynamic_range(dicom, data, output_min, output_max, options = {})
+    if options[:range]
+      v0, minimum, maximum = options[:range]
+    else
+      v0, minimum, maximum = data_range(dicom, data, options)
     end
     r = (maximum - minimum).to_f
 
@@ -191,7 +235,7 @@ class DicomPack
       image_options[:level] = true
     end
     if options[:optimize]
-      data = optimize_dynamic_range(dicom.narray(image_options), 0, 255, options)
+      data = optimize_dynamic_range(dicom, dicom.narray(image_options), 0, 255, options)
       image.pixels = data
       image = dicom.image
     else
