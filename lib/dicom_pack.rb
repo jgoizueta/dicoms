@@ -114,9 +114,9 @@ class DicomPack
 
   def save_jpg(dicom, output_image)
     if DICOM.image_processor == :mini_magick
-      d.image.normalize.format('jpg').write(output_image)
+      dicom.image.normalize.format('jpg').write(output_image)
     else
-      d.image.normalize.write(output_image)
+      dicom.image.normalize.write(output_image)
     end
   end
 
