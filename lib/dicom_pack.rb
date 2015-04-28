@@ -119,7 +119,7 @@ class DicomPack
     last_z = nil
     n = 0
 
-    first = true
+    range = nil
     dicom_files.each do |file|
       d = DICOM::DObject.read(file)
       n += 1
@@ -133,8 +133,17 @@ class DicomPack
         first_z = last_z
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
+      if range.nil?
+        if options[:level]
+          # apply window leveling
+          data = d.narray(level: true)
+        else
+          data = d.narray
+        end
+        range = data_range(d, data, options.merge(first_range: true))
+        options = options.merge(range: range)
+      end
       output_image = output_file_name(pack_dir, prefix, file)
-      # TODO: range optimization should be done with the same parameters for all files...
       save_jpg d, output_image, options
     end
     metadata.nz = n
@@ -210,6 +219,28 @@ class DicomPack
     else
       minimum = v0
     end
+    if options[:first_range]
+      # extend the range slightly
+      if options[:first_range].is_a?(Numeric)
+        k = options[:first_range].to_f
+      else
+        k = 0.1
+      end
+      v0, minimum, maximum = extend_data_range(k, v0, minimum, maximum)
+    end
+    puts [v0, minimum, maximum].inspect
+    [v0, minimum, maximum]
+  end
+
+  def extend_data_range(k, v0, minimum, maximum)
+    k += 1.0
+    c = (maximum + minimum)/2
+    if v0 == minimum
+      v0 = minimum = (c + k*(minimum - c)).round
+    else
+      minimum = [v0+1, (c + k*(minimum - c)).round].max
+    end
+    maximum = (c + k*(maximum - c)).round
     [v0, minimum, maximum]
   end
 
@@ -229,14 +260,22 @@ class DicomPack
   end
 
   def save_jpg(dicom, output_image, options = {})
-    # TODO: options to optimize dynamic rage, drop base level;
     image_options = { narray: true }
     if options[:level]
       image_options[:level] = true
     end
     if options[:optimize]
-      data = optimize_dynamic_range(dicom, dicom.narray(image_options), 0, 255, options)
-      image.pixels = data
+      if dicom.bits_stored.value.to_i == 16
+        if dicom.send(:signed_pixels?)
+          min, max = -32767, 32767
+        else
+          min, max = 0, 65535
+        end
+      else
+        min, max = 0, 255
+      end
+      data = optimize_dynamic_range(dicom, dicom.narray(image_options), min, max, options)
+      dicom.pixels = data
       image = dicom.image
     else
       image = dicom.image(options).normalize
