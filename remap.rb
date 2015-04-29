@@ -9,7 +9,8 @@ require_relative 'lib/dicom_pack'
 dicom_directory = ARGV.shift
 level = ARGV.shift
 do_level = (level == 'level')
-unless dicom_directory && File.directory?(dicom_directory) && (!level || do_level)
+do_keep = (level == 'keep')
+unless dicom_directory && File.directory?(dicom_directory) && (!level || do_level || do_keep)
   puts "Uso:"
   puts "  remap directorio-imagen-dicom [level]"
   if dicom_directory
@@ -21,4 +22,4 @@ end
 # TODO: read settings
 settings = {}
 packer = DicomPack.new(settings)
-packer.remap dicom_directory, drop_base_level: true, level: do_level
+packer.remap dicom_directory, drop_base_level: true, level: do_level, keep: do_keep

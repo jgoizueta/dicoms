@@ -26,7 +26,6 @@ class DicomPack
   # * :level - apply window leveling
   # * :drop_base_level - remove lowest level (only if not doing window leveling)
   def remap(dicom_directory, options = {})
-
     dicom_files = Dir.glob(File.join(dicom_directory, '*.dcm'))
     if dicom_files.empty?
       puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
@@ -37,11 +36,11 @@ class DicomPack
     output_dir = options[:output] || (dicom_directory+'_remapped')
     FileUtils.mkdir_p output_dir
 
-    if options[:level]
+    if options[:level] || options[:keep]
       options = options.merge(drop_base_level: false)
     end
 
-    if options[:first_range] || options[:level]
+    if options[:first_range] || options[:level] || options[:keep]
       # will use the range of the first image for all of them
       range = nil
     else
@@ -66,7 +65,6 @@ class DicomPack
         maximum = d_max if maximum < d_max
       end
       range = [v0, minimum, maximum]
-      puts "RANGE: #{range.inspect}"
     end
 
     dicom_files.each do |file|
@@ -75,8 +73,10 @@ class DicomPack
       signed = d.send(:signed_pixels?)
       if d.bits_stored.value.to_i == 16
         default_max = signed ? 32767 : 65525
+        offset = signed ? 32768 : 0
       else
         default_max = signed ? 127 : 255
+        offset = signed ? 128 : 0
       end
       output_max = options[:max] || default_max
       output_min = options[:min] || 0
@@ -88,11 +88,16 @@ class DicomPack
         data = d.narray
       end
 
-      range ||= data_range(d, data, options)
-      data = optimize_dynamic_range(d, data, output_min, output_max, options.merge(range: range))
+      if options[:keep]
+        data += offset
+        d.window_center = d.window_center.value.to_i + offset
+      else
+        range ||= data_range(d, data, options)
+        data = optimize_dynamic_range(d, data, output_min, output_max, options.merge(range: range))
 
-      d.window_center = (output_max + output_min) / 2
-      d.window_width = (output_max - output_min)
+        d.window_center = (output_max + output_min) / 2
+        d.window_width = (output_max - output_min)
+      end
       d.pixels = data
 
       output_file = File.join(output_dir, File.basename(file))
@@ -228,7 +233,6 @@ class DicomPack
       end
       v0, minimum, maximum = extend_data_range(k, v0, minimum, maximum)
     end
-    puts [v0, minimum, maximum].inspect
     [v0, minimum, maximum]
   end
 
@@ -278,7 +282,7 @@ class DicomPack
       dicom.pixels = data
       image = dicom.image
     else
-      image = dicom.image(options).normalize
+      image = dicom.image(image_options).normalize
     end
     if DICOM.image_processor == :mini_magick
       image.format('jpg')

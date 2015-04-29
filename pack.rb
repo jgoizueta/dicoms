@@ -19,9 +19,15 @@ end
 # TODO: read settings
 settings = {}
 packer = DicomPack.new(settings)
-if ARGV.shift == 'level'
+mode = ARGV.shift
+if mode == 'level'
+  puts "level"
   packer.pack dicom_directory, level: true
+elsif mode == 'keep'
+  puts "Keep"
+  packer.pack dicom_directory, optimize: true
 else
+  puts "drop"
   packer.pack dicom_directory, optimize: true, drop_base_level: true
 end
 # TODO option for custom window (center, width)
