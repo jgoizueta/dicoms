@@ -62,8 +62,6 @@ class DicomPack
       puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
 
-    # TODO: do we need to sort dicom_files?
-
     output_dir = options[:output] || (dicom_directory+'_remapped')
     FileUtils.mkdir_p output_dir
 
@@ -147,8 +145,6 @@ class DicomPack
     if dicom_files.empty?
       puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
-
-    # TODO: do we need to sort dicom_files?
 
     output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
     pack_dir = options[:tmp] || 'dicompack_tmp' # TODO:...
