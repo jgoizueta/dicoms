@@ -20,13 +20,44 @@ class DicomPack
 
   attr_reader :settings
 
-  # remap the dicom values of a set of images to maximize dynaic range
+  def dicom?(file)
+    ok = false
+    if File.file?(file)
+      File.open(file, 'rb') do |data|
+        data.seek 128, IO::SEEK_SET # skip preamble
+        ok = (data.read(4) == 'DICM')
+      end
+    end
+    ok
+  end
+
+  # Find DICOM files in a directory;
+  # Return the file names in an array.
+  # DICOM files with a numeric part in the name are returned first, ordered
+  # by the numeric value.
+  # DICOM files with non-numeric names are returned last ordered by name.
+  def find_dicom_files(dicom_directory)
+    files = Dir.glob(File.join(dicom_directory, '*')).select{|f| dicom?(f)}
+    non_numeric = []
+    numeric_files = []
+    files.each do |name|
+      match = /\d+/.match(name)
+      if match
+        numeric_files << [match[0], name]
+      else
+        non_numeric << name
+      end
+    end
+    numeric_files.sort_by{ |text, name| text.to_i }.map(&:last) + non_numeric.sort
+  end
+
+  # remap the dicom values of a set of images to maximize dynamic range
   # and avoid negative values
   # options:
   # * :level - apply window leveling
   # * :drop_base_level - remove lowest level (only if not doing window leveling)
   def remap(dicom_directory, options = {})
-    dicom_files = Dir.glob(File.join(dicom_directory, '*.dcm'))
+    dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
       puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
@@ -106,8 +137,13 @@ class DicomPack
   end
 
   def pack(dicom_directory, options = {})
+    # TODO: remap modes:
+    # a) preserve -2048,2048 / parameterized min/max
+    # b) preserve global max, min with drop_min option
+    # c) preserve first image max, min with drop_min option [or use a sample]
+    # keep remapping parameters in metadata
 
-    dicom_files = Dir.glob(File.join(dicom_directory, '*.dcm'))
+    dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
       puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
@@ -323,6 +359,7 @@ class DicomPack
     Settings[
       dx: dx, dy: dy, x: x, y: y, z: z,
       slice_z: slice_z, nx: nx, ny: ny
+      # TODO: + min, max (original values corresponding to 0, 255)
     ]
   end
 
