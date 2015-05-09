@@ -19,15 +19,16 @@ end
 # TODO: read settings
 settings = {}
 packer = DicomPack.new(settings)
+
+# TODO: parameters to choose the strategy
 mode = ARGV.shift
-if mode == 'level'
-  puts "level"
-  packer.pack dicom_directory, level: true
-elsif mode == 'keep'
-  puts "Keep"
-  packer.pack dicom_directory, optimize: true
+if mode == 'window'
+  puts "Window"
+  packer.pack dicom_directory, stategy: :window
+elsif mode == 'drop'
+  puts "Drop"
+  packer.pack dicom_directory, strategy: :sample, drop_base: true
 else
-  puts "drop"
-  packer.pack dicom_directory, optimize: true, drop_base_level: true
+  puts "Sample"
+  packer.pack dicom_directory, strategy: :sample
 end
-# TODO option for custom window (center, width)

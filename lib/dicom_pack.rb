@@ -51,6 +51,254 @@ class DicomPack
     numeric_files.sort_by{ |text, name| text.to_i }.map(&:last) + non_numeric.sort
   end
 
+  # TODO: keep more metadata to restore the exact strategy+min,max and so
+  # be able to restore original DICOM values (and rescaling/window metadata)
+  # bit depth, signed/unsigned, rescale, window, data values corresponding
+  # to minimum (black) and maximum (white)
+
+  # A Dynamic-range strategy determines how are data values
+  # mapped to pixel intensities in images
+  class DynamicRangeStrategy
+    # TODO: rename this class to RangeMapper or DataMapper ...
+
+    def initialize(options = {})
+    end
+
+    def image(dicom, min, max)
+      dicom.pixels = processed_data(dicom, min, max)
+      dicom.image
+    end
+
+    def self.min_max_strategy(strategy, options = {})
+      case strategy
+      when :fixed
+        strategy_class = FixedStrategy
+      when :window
+        strategy_class = WindowStrategy
+      when :first
+        strategy_class = FirstStrategy
+      when :global
+        strategy_class = GlobalStrategy
+      when :sample
+        strategy_class = SampleStrategy
+      end
+      strategy_class.new options
+    end
+
+    def self.min_max_limits(dicom)
+      signed = dicom.send(:signed_pixels?)
+      if dicom.bits_stored.value.to_i == 16
+        if signed
+          [-32768, 32767]
+        else
+          [0, 65535]
+        end
+      elsif signed
+        [-128, 127]
+      else
+        [0, 255]
+      end
+    end
+
+  end
+
+  # Apply window-clipping; also
+  # always apply rescale (remap)
+  class WindowStrategy < DynamicRangeStrategy
+
+    def initialize(options = {})
+      @center = options[:center]
+      @width  = options[:width]
+    end
+
+    def min_max(files)
+      # TODO: use options to sample/take first/take all?
+      dicom = DICOM::DObject.read(files.first)
+      data_range dicom
+    end
+
+    def processed_data(dicom, min, max)
+      center = (min + max)/2
+      width = max - min
+      data = dicom.narray(level: [center, width])
+      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      data -= min
+      data *= (output_max - output_min).to_f/(max - min)
+      data += output_min
+      data
+    end
+
+    # def image(dicom, min, max)
+    #   center = (min + max)/2
+    #   width = max - min
+    #   dicom.image(level: [center, width]).normalize
+    # end
+
+    private
+
+    USE_DATA = false
+
+    def data_range(dicom)
+      if USE_DATA
+        if @center && @width
+          level = [@center, @width]
+        else
+          level = true
+        end
+        data = dicom.narray(level: level)
+        [data.min, data.max]
+      else
+        center = @center || dicom.window_center.value.to_i
+        width  = @width  || dicom.window_width.value.to_i
+        low = center - width/2
+        high = center + width/2
+        [low, high]
+      end
+    end
+
+  end
+
+  # These strategies
+  # have optional dropping of the lowest level (base),
+  # photometric rescaling, extension factor
+  # and map the minimum/maximum input values
+  # (determined by the particular strategy and files)
+  # to the minimum/maximum output levels (black/white)
+  class RangeStrategy < DynamicRangeStrategy
+
+    def initialize(options = {})
+      @rescale = options[:rescale]
+      @drop_base = options[:drop_base]
+      @extension_factor = options[:extend] || 0.0
+      super options
+    end
+
+    def min_max(files)
+      files = select_files(files)
+      v0 = minimum = maximum = nil
+      files.each do |file|
+        d = DICOM::DObject.read(file)
+        d_v0, d_min, d_max = data_range(d)
+        v0 ||= d_v0
+        minimum ||= d_min
+        maximum ||= d_max
+        v0 = d_v0 if v0 && d_v0 && v0 > d_v0
+        minimum = d_min if minimum > d_min
+        maximum = d_max if maximum < d_max
+      end
+      [minimum, maximum]
+    end
+
+    def processed_data(dicom, min, max)
+      # Note: if DICOM would provide a way to control the +min_allowed+, +max_allowed+ parameters it
+      # uses internally we could do this:
+      #   if @rescale # TODO: || intercept == 0 && slope == 1
+      #     center = (min + max)/2
+      #     width = max - min
+      #     dicom.narray(level: [center, width], min_allowed: min, max_allowd: max)
+      #   ...
+      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      data = dicom.narray(level: false, remap: @rescale)
+      r = (max - min).to_f
+      data -= min
+      data *= (output_max - output_min)/r
+      data += output_min
+      data[data < output_min] = output_min
+      data[data > output_max] = output_max
+      data
+    end
+
+    private
+
+    def data_range(dicom)
+      data = dicom.narray(level: false, remap: @rescale)
+      base = nil
+      minimum = data.min
+      maximum = data.max
+      if @drop_base
+        base = minimum
+        minimum = maximum
+        data.each { |v| minimum = [v, minimum].min if v > base }
+      end
+      if @extension_factor != 0
+        # extend the range
+        minimum, maximum = extend_data_range(@extension_factor, base, minimum, maximum)
+      end
+      [base, minimum, maximum]
+    end
+
+    def extend_data_range(k, base, minimum, maximum)
+      k += 1.0
+      c = (maximum + minimum)/2
+      minimum = (c + k*(minimum - c)).round
+      maximum = (c + k*(maximum - c)).round
+      if base
+        minimum = base + 1 if minimum <= base
+      end
+      [minimum, maximum]
+    end
+
+  end
+
+
+  class FixedStrategy < RangeStrategy
+
+    def initialize(options = {})
+      @fixed_min = options[:min] || -2048
+      @fixed_max = options[:max] || +2048
+      options[:drop_base] = false
+      options[:extend] = nil
+      super options
+    end
+
+    def min_max(files)
+      # TODO: set default min, max regarding dicom data type
+      [@fixed_min, @fixed_max]
+    end
+
+  end
+
+  class GlobalStrategy < RangeStrategy
+
+    private
+
+    def select_files(files)
+      files
+    end
+
+  end
+
+  class FirstStrategy < RangeStrategy
+
+    def initialize(options = {})
+      extend = options[:extend] || 0.3
+      super options.merge(extend: extend)
+    end
+
+    private
+
+    def select_files(files)
+      [files.first].compact
+    end
+
+  end
+
+  class SampleStrategy < RangeStrategy
+
+    def initialize(options = {})
+      @max_files = options[:max_files] || 8
+      super options
+    end
+
+    private
+
+    def select_files(files)
+      n = [files.size, @max_files].min
+      files.sample(n)
+    end
+
+  end
+
   # remap the dicom values of a set of images to maximize dynamic range
   # and avoid negative values
   # options:
@@ -59,91 +307,58 @@ class DicomPack
   def remap(dicom_directory, options = {})
     dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
-      puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
+      raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
 
     output_dir = options[:output] || (dicom_directory+'_remapped')
     FileUtils.mkdir_p output_dir
 
-    if options[:level] || options[:keep]
-      options = options.merge(drop_base_level: false)
-    end
 
-    if options[:first_range] || options[:level] || options[:keep]
-      # will use the range of the first image for all of them
-      range = nil
-    else
-      # will compute the actual range of all the images
-      v0 = minimum = maximum = nil
-      dicom_files.each do |file|
-        d = DICOM::DObject.read(file)
-        # TODO: level8 options that applies level and normalizes to 0-255
-        # but avoids normalization (just offsets) if the range is already < 255
-        if options[:level]
-          # apply window leveling
-          data = d.narray(level: true)
-        else
-          data = d.narray
-        end
-        d_v0, d_min, d_max = data_range(d, data, options)
-        v0 ||= d_v0
-        minimum ||= d_min
-        maximum ||= d_max
-        v0 = d_v0 if v0 > d_v0
-        minimum = d_min if minimum > d_min
-        maximum = d_max if maximum < d_max
-      end
-      range = [v0, minimum, maximum]
+    if options[:strategy] != :unsigned
+      strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
+      min, max = strategy.min_max(dicom_files)
     end
 
     dicom_files.each do |file|
       d = DICOM::DObject.read(file)
-
-      signed = d.send(:signed_pixels?)
-      if d.bits_stored.value.to_i == 16
-        default_max = signed ? 32767 : 65525
-        offset = signed ? 32768 : 0
-      else
-        default_max = signed ? 127 : 255
-        offset = signed ? 128 : 0
+      lim_min, lim_max = DynamicRangeStrategy.min_max_limits(d)
+      if options[:strategy] == :unsigned
+        if lim_min < 0
+          offset = -lim_min
+        else
+          offset = 0
+        end
       end
-      output_max = options[:max] || default_max
-      output_min = options[:min] || 0
-
-      if options[:level]
-        # apply window leveling
-        data = d.narray(level: true)
+      if offset
+        if offset != 0
+          d.window_center = d.window_center.value.to_i + offset
+          d.pixel_representation = 0
+          data = d.narray
+          data += offset
+          d.pixels = data
+        end
       else
-        data = d.narray
+        if (min < lim_min || max > lim_max)
+          if min >= 0
+            d.pixel_representation = 0
+          else
+            d.pixel_representation = 1
+          end
+        end
+        lim_min, lim_max = DynamicRangeStrategy.min_max_limits(d)
+        d.window_center = (lim_max + lim_min) / 2
+        d.window_width = (lim_max - lim_min)
+        d.pixels = strategy.processed_data(d, min, max)
       end
-
-      if options[:keep]
-        data += offset
-        d.window_center = d.window_center.value.to_i + offset
-      else
-        range ||= data_range(d, data, options)
-        data = optimize_dynamic_range(d, data, output_min, output_max, options.merge(range: range))
-
-        d.window_center = (output_max + output_min) / 2
-        d.window_width = (output_max - output_min)
-      end
-      d.pixels = data
-
       output_file = File.join(output_dir, File.basename(file))
       d.write output_file
     end
   end
 
   def pack(dicom_directory, options = {})
-    # TODO: remap modes:
-    # a) preserve -2048,2048 / parameterized min/max
-    # b) preserve global max, min with drop_min option
-    # c) preserve first image max, min with drop_min option [or use a sample]
-    # keep remapping parameters in metadata
-
     dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
-      puts "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
+      raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
     end
 
     output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
@@ -156,7 +371,9 @@ class DicomPack
     last_z = nil
     n = 0
 
-    range = nil
+    strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
+    min, max = strategy.min_max(dicom_files)
+    metadata.merge! min: min, max: max
     dicom_files.each do |file|
       d = DICOM::DObject.read(file)
       n += 1
@@ -170,18 +387,8 @@ class DicomPack
         first_z = last_z
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
-      if range.nil?
-        if options[:level]
-          # apply window leveling
-          data = d.narray(level: true)
-        else
-          data = d.narray
-        end
-        range = data_range(d, data, options.merge(first_range: true))
-        options = options.merge(range: range)
-      end
       output_image = output_file_name(pack_dir, prefix, file)
-      save_jpg d, output_image, options
+      save_jpg d, output_image, strategy, min, max
     end
     metadata.nz = n
     metadata.dz = (last_z - first_z)/(n-1)
@@ -240,82 +447,19 @@ class DicomPack
 
   private
 
-  def data_range(dicom, data, options = {})
-    if options[:level]
-      center = dicom.window_center.value.to_i
-      width  = dicom.window_width.value.to_i
-      low = center - width/2
-      high = center + width/2
-      return [low, low, high]
-    end
-    v0 = data.min
-    maximum = data.max
-    if options[:drop_base_level]
-      minimum = maximum
-      data.each { |v| minimum = [v, minimum].min if v > v0 }
-    else
-      minimum = v0
-    end
-    if options[:first_range]
-      # extend the range slightly
-      if options[:first_range].is_a?(Numeric)
-        k = options[:first_range].to_f
-      else
-        k = 0.1
-      end
-      v0, minimum, maximum = extend_data_range(k, v0, minimum, maximum)
-    end
-    [v0, minimum, maximum]
-  end
+  # def optimize_dynamic_range(data, output_min, output_max, options = {})
+  #   minimum, maximum = options[:range]
+  #   r = (maximum - minimum).to_f
+  #   data -= minimum
+  #   data *= (output_max - output_min)/r
+  #   data += output_min
+  #   data[data < output_min] = output_min
+  #   data[data > output_max] = output_max
+  #   data
+  # end
 
-  def extend_data_range(k, v0, minimum, maximum)
-    k += 1.0
-    c = (maximum + minimum)/2
-    if v0 == minimum
-      v0 = minimum = (c + k*(minimum - c)).round
-    else
-      minimum = [v0+1, (c + k*(minimum - c)).round].max
-    end
-    maximum = (c + k*(maximum - c)).round
-    [v0, minimum, maximum]
-  end
-
-  def optimize_dynamic_range(dicom, data, output_min, output_max, options = {})
-    if options[:range]
-      v0, minimum, maximum = options[:range]
-    else
-      v0, minimum, maximum = data_range(dicom, data, options)
-    end
-    r = (maximum - minimum).to_f
-
-    data[data <= v0] = minimum if v0 < minimum
-    data -= minimum
-    data *= (output_max - output_min)/r
-    data += output_min
-    data
-  end
-
-  def save_jpg(dicom, output_image, options = {})
-    image_options = { narray: true }
-    if options[:level]
-      image_options[:level] = true
-    end
-    if options[:optimize]
-      if dicom.bits_stored.value.to_i == 16
-        if dicom.send(:signed_pixels?)
-          min, max = -32767, 32767
-        else
-          min, max = 0, 65535
-        end
-      else
-        min, max = 0, 255
-      end
-      data = optimize_dynamic_range(dicom, dicom.narray(image_options), min, max, options)
-      dicom.pixels = data
-      image = dicom.image
-    else
-      image = dicom.image(image_options).normalize
-    end
+  def save_jpg(dicom, output_image, strategy, min, max)
+    image = strategy.image(dicom, min, max)
     if DICOM.image_processor == :mini_magick
       image.format('jpg')
     end
