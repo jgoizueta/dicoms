@@ -2,3 +2,4 @@ dicompack_out
 dicompack_in
 dicompack_tmp
 *.mkv
+/tmp/
