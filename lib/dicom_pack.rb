@@ -356,8 +356,21 @@ class DicomPack
       min, max = strategy.min_max(dicom_files)
     end
 
+    dd_hack = true
+    # Hack to solve problem with some DICOMS having different header size
+    # (incovenient for some tests) due to differing 0008,2111 element
+
+    if dd_hack
+      first = true
+      dd = nil
+    end
+
     dicom_files.each do |file|
       d = DICOM::DObject.read(file)
+      if dd_hack
+        dd = d.derivation_description if first
+        d.derivation_description = dd
+      end
       lim_min, lim_max = DynamicRangeStrategy.min_max_limits(d)
       if options[:strategy] == :unsigned
         if lim_min < 0
