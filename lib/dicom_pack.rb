@@ -254,8 +254,7 @@ class DicomPack
       maximum = data.max
       if @drop_base
         base = minimum
-        minimum = maximum
-        data.each { |v| minimum = [v, minimum].min if v > base }
+        minumum  = data[data > base].min
       end
       if @extension_factor != 0
         # extend the range
