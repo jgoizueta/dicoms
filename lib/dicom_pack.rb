@@ -57,6 +57,34 @@ class DicomPack
 
   attr_reader :settings
 
+  # Code that use images should be wrapped with this.
+  #
+  # Reason: if RMagick is used by DICOM to handle images
+  # the first time it is needed, 'rmagick' will be required.
+  # This has the effect of placing the path of ImageMagick
+  # in front of the PATH.
+  # On Windows, ImageMagick includes FFMPeg in its path and we
+  # may require a later version than the bundled with IM,
+  # so we keep the original path rbefore RMagick alters it.
+  # We may be less dependant on the FFMpeg version is we avoid
+  # using the start_number option by renumbering the extracted
+  # images...
+  def keeping_path
+    path = ENV['PATH']
+    yield
+  ensure
+    ENV['PATH'] = path
+  end
+
+  # Replace ALT_SEPARATOR in pathname (Windows)
+  def normalized_path(path)
+    if File::ALT_SEPARATOR
+      path.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
+    else
+      path
+    end
+  end
+
   def dicom?(file)
     ok = false
     if File.file?(file)
@@ -74,6 +102,7 @@ class DicomPack
   # by the numeric value.
   # DICOM files with non-numeric names are returned last ordered by name.
   def find_dicom_files(dicom_directory)
+    dicom_directory = normalized_path(dicom_directory)
     files = Dir.glob(File.join(dicom_directory, '*')).select{|f| dicom?(f)}
     non_numeric = []
     numeric_files = []
@@ -466,7 +495,6 @@ class DicomPack
   end
 
   def unpack(pack_file, options = {})
-
     unpack_dir = options[:output] || File.basename(pack_file, '.mkv')
     FileUtils.mkdir_p unpack_dir
 
@@ -526,11 +554,13 @@ class DicomPack
   # end
 
   def save_jpg(dicom, output_image, strategy, min, max)
-    image = strategy.image(dicom, min, max)
-    if DICOM.image_processor == :mini_magick
-      image.format('jpg')
+    keeping_path do
+      image = strategy.image(dicom, min, max)
+      if DICOM.image_processor == :mini_magick
+        image.format('jpg')
+      end
+      image.write(output_image)
     end
-    image.write(output_image)
   end
 
   METADATA_TYPES = {
