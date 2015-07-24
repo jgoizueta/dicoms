@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+require 'dicompack'
+require 'dicompack/cli'
+
+DicomPack::CLI.start ARGV

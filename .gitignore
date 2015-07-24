@@ -3,3 +3,12 @@ dicompack_in
 dicompack_tmp
 *.mkv
 /tmp/
+/.bundle/
+/.yardoc
+/Gemfile.lock
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/

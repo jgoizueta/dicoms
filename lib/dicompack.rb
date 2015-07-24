@@ -5,6 +5,9 @@ require 'sys_cmd'
 require 'narray'
 require_relative 'meta_codec'
 
+require "dicompack/version"
+require "dicompack/meta_codec"
+
 # TODO: require known SOP Class: 1.2.840.10008.5.1.4.1.1.2
 # (in tag 0002,0002, Media Storage SOP Class UID)
 # And Transfer Syntax 0002,0010 1.2.840.10008.1.2:
