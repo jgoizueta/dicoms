@@ -3,7 +3,6 @@ require 'dicom'
 require 'modalsettings'
 require 'sys_cmd'
 require 'narray'
-require_relative 'meta_codec'
 
 require "dicompack/version"
 require "dicompack/meta_codec"
