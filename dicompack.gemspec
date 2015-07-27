@@ -28,11 +28,11 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'dicom'
   # spec.add_dependency 'dicom', 'mini_magick'
-  add_dependency 'rmagick', '~> 2.14'
-  add_dependency 'sys_cmd', '>= 0.2.1'
-  add_dependency 'modalsettings', '~> 1.0.1'
-  add_dependency 'narray', '~> 0.6'
-  add_dependency 'thor', '~> 0.19'
+  spec.add_dependency 'rmagick', '~> 2.14'
+  spec.add_dependency 'sys_cmd', '>= 0.2.1'
+  spec.add_dependency 'modalsettings', '~> 1.0.1'
+  spec.add_dependency 'narray', '~> 0.6'
+  spec.add_dependency 'thor', '~> 0.19'
 
 
   spec.add_development_dependency "bundler", "~> 1.10"
