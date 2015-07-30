@@ -12,3 +12,4 @@ dicompack_tmp
 /pkg/
 /spec/reports/
 /tmp/
+/test/data/
