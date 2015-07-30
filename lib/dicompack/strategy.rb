@@ -1,0 +1,243 @@
+class DicomPack
+  # A Dynamic-range strategy determines how are data values
+  # mapped to pixel intensities in images
+  class DynamicRangeStrategy
+    # TODO: rename this class to RangeMapper or DataMapper ...
+
+    def initialize(options = {})
+    end
+
+    def image(dicom, min, max)
+      dicom.pixels = processed_data(dicom, min, max)
+      dicom.image
+    end
+
+    def self.min_max_strategy(strategy, options = {})
+      case strategy
+      when :fixed
+        strategy_class = FixedStrategy
+      when :window
+        strategy_class = WindowStrategy
+      when :first
+        strategy_class = FirstStrategy
+      when :global
+        strategy_class = GlobalStrategy
+      when :sample
+        strategy_class = SampleStrategy
+      end
+      strategy_class.new options
+    end
+
+    def self.min_max_limits(dicom)
+      signed = dicom.send(:signed_pixels?)
+      if dicom.bits_stored.value.to_i == 16
+        if signed
+          [-32768, 32767]
+        else
+          [0, 65535]
+        end
+      elsif signed
+        [-128, 127]
+      else
+        [0, 255]
+      end
+    end
+
+  end
+
+  # Apply window-clipping; also
+  # always apply rescale (remap)
+  class WindowStrategy < DynamicRangeStrategy
+
+    def initialize(options = {})
+      @center = options[:center]
+      @width  = options[:width]
+    end
+
+    def min_max(files)
+      # TODO: use options to sample/take first/take all?
+      dicom = DICOM::DObject.read(files.first)
+      data_range dicom
+    end
+
+    def processed_data(dicom, min, max)
+      center = (min + max)/2
+      width = max - min
+      data = dicom.narray(level: [center, width])
+      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      data -= min
+      data *= (output_max - output_min).to_f/(max - min)
+      data += output_min
+      data
+    end
+
+    # def image(dicom, min, max)
+    #   center = (min + max)/2
+    #   width = max - min
+    #   dicom.image(level: [center, width]).normalize
+    # end
+
+    private
+
+    USE_DATA = false
+
+    def data_range(dicom)
+      if USE_DATA
+        if @center && @width
+          level = [@center, @width]
+        else
+          level = true
+        end
+        data = dicom.narray(level: level)
+        [data.min, data.max]
+      else
+        center = @center || dicom.window_center.value.to_i
+        width  = @width  || dicom.window_width.value.to_i
+        low = center - width/2
+        high = center + width/2
+        [low, high]
+      end
+    end
+
+  end
+
+  # These strategies
+  # have optional dropping of the lowest level (base),
+  # photometric rescaling, extension factor
+  # and map the minimum/maximum input values
+  # (determined by the particular strategy and files)
+  # to the minimum/maximum output levels (black/white)
+  class RangeStrategy < DynamicRangeStrategy
+
+    def initialize(options = {})
+      @rescale = options[:rescale]
+      @drop_base = options[:drop_base]
+      @extension_factor = options[:extend] || 0.0
+      super options
+    end
+
+    def min_max(files)
+      files = select_files(files)
+      v0 = minimum = maximum = nil
+      files.each do |file|
+        d = DICOM::DObject.read(file)
+        d_v0, d_min, d_max = data_range(d)
+        v0 ||= d_v0
+        minimum ||= d_min
+        maximum ||= d_max
+        v0 = d_v0 if v0 && d_v0 && v0 > d_v0
+        minimum = d_min if minimum > d_min
+        maximum = d_max if maximum < d_max
+      end
+      [minimum, maximum]
+    end
+
+    def processed_data(dicom, min, max)
+      # Note: if DICOM would provide a way to control the +min_allowed+, +max_allowed+ parameters it
+      # uses internally we could do this:
+      #   if @rescale # TODO: || intercept == 0 && slope == 1
+      #     center = (min + max)/2
+      #     width = max - min
+      #     dicom.narray(level: [center, width], min_allowed: min, max_allowd: max)
+      #   ...
+      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      data = dicom.narray(level: false, remap: @rescale)
+      r = (max - min).to_f
+      data -= min
+      data *= (output_max - output_min)/r
+      data += output_min
+      data[data < output_min] = output_min
+      data[data > output_max] = output_max
+      data
+    end
+
+    private
+
+    def data_range(dicom)
+      data = dicom.narray(level: false, remap: @rescale)
+      base = nil
+      minimum = data.min
+      maximum = data.max
+      if @drop_base
+        base = minimum
+        minumum  = data[data > base].min
+      end
+      if @extension_factor != 0
+        # extend the range
+        minimum, maximum = extend_data_range(@extension_factor, base, minimum, maximum)
+      end
+      [base, minimum, maximum]
+    end
+
+    def extend_data_range(k, base, minimum, maximum)
+      k += 1.0
+      c = (maximum + minimum)/2
+      minimum = (c + k*(minimum - c)).round
+      maximum = (c + k*(maximum - c)).round
+      if base
+        minimum = base + 1 if minimum <= base
+      end
+      [minimum, maximum]
+    end
+
+  end
+
+
+  class FixedStrategy < RangeStrategy
+
+    def initialize(options = {})
+      @fixed_min = options[:min] || -2048
+      @fixed_max = options[:max] || +2048
+      options[:drop_base] = false
+      options[:extend] = nil
+      super options
+    end
+
+    def min_max(files)
+      # TODO: set default min, max regarding dicom data type
+      [@fixed_min, @fixed_max]
+    end
+
+  end
+
+  class GlobalStrategy < RangeStrategy
+
+    private
+
+    def select_files(files)
+      files
+    end
+
+  end
+
+  class FirstStrategy < RangeStrategy
+
+    def initialize(options = {})
+      extend = options[:extend] || 0.3
+      super options.merge(extend: extend)
+    end
+
+    private
+
+    def select_files(files)
+      [files.first].compact
+    end
+
+  end
+
+  class SampleStrategy < RangeStrategy
+
+    def initialize(options = {})
+      @max_files = options[:max_files] || 8
+      super options
+    end
+
+    private
+
+    def select_files(files)
+      n = [files.size, @max_files].min
+      files.sample(n)
+    end
+
+  end
+end
