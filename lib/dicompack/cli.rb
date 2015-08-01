@@ -21,6 +21,7 @@ class DicomPack
     option :tmp,      desc: 'temporary directory'
     option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'sample'
     def pack(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
       strategy_parameters = {
         drop_base: true
       }
@@ -45,6 +46,7 @@ class DicomPack
     desc "unpack DICOMPACK", "unpack a dicompack file"
     option :output,   desc: 'output directory', aliases: '-o'
     def unpack(dicompack)
+      DICOM.logger.level = Logger::FATAL
       unless File.file?(dicompack)
         raise Error, set_color("File not found: #{dicompack}", :red)
         say options
@@ -60,6 +62,7 @@ class DicomPack
     option :output,   desc: 'output directory', aliases: '-o'
     option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'sample'
     def pack(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
       strategy_parameters = {
         drop_base: true
       }

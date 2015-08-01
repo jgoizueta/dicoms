@@ -167,7 +167,7 @@ class DicomPack
     unless command.success?
       puts "Error executing:"
       puts "  #{command}"
-      puts command.output
+      puts command.error_output
       exit 1
     end
   end

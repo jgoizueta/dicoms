@@ -7,20 +7,24 @@ class DicomPack
     output_file_pattern = File.join(unpack_dir, "#{prefix}-%3d.jpeg")
 
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-hide_banner'
+      option '-loglevel', 'quiet'
       option '-i', file: pack_file
       option '-q:v', 2
       file output_file_pattern
     end
-    ffmpeg.run
+    ffmpeg.run error_output: :separate
     check_command ffmpeg
 
     metadata_file = File.join(unpack_dir, 'metadata.txt')
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-hide_banner'
+      option '-loglevel', 'quiet'
       option '-i', file: pack_file
       option '-f', 'ffmetadata'
       file metadata_file
     end
-    ffmpeg.run
+    ffmpeg.run error_output: :separate
     check_command ffmpeg
 
     dicom_elements, metadata = meta_codec.read_metadata(metadata_file)

@@ -4,7 +4,7 @@ class DicomPack
     # be able to restore original DICOM values (and rescaling/window metadata)
     # bit depth, signed/unsigned, rescale, window, data values corresponding
     # to minimum (black) and maximum (white)
-    
+
     dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
       raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
@@ -47,6 +47,8 @@ class DicomPack
       meta_codec.write_metadata(DICOM::DObject.read(dicom_files.first), metadata_file, metadata.to_h)
     end
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-loglevel', 'quiet'
+      option '-hide_banner'
       option '-start_number', start_number
       option '-i', name_pattern
       option '-vcodec', 'mjpeg'
@@ -61,7 +63,7 @@ class DicomPack
       end
       file output_name
     end
-    ffmpeg.run
+    ffmpeg.run error_output: :separate
     check_command ffmpeg
   end
 end
