@@ -109,8 +109,14 @@ class DicomPack
   # by the numeric value.
   # DICOM files with non-numeric names are returned last ordered by name.
   def find_dicom_files(dicom_directory)
-    dicom_directory = normalized_path(dicom_directory)
-    files = Dir.glob(File.join(dicom_directory, '*')).select{|f| dicom?(f)}
+    if File.directory?(dicom_directory)
+      dicom_directory = normalized_path(dicom_directory)
+      files = Dir.glob(File.join(dicom_directory, '*')).select{|f| dicom?(f)}
+    elsif File.file?(dicom_directory) && dicom?(dicom_directory)
+      files = [dicom_directory]
+    else
+      files = []
+    end
     non_numeric = []
     numeric_files = []
     files.each do |name|
