@@ -10,6 +10,7 @@ require "dicompack/strategy"
 require "dicompack/extract"
 require "dicompack/pack"
 require "dicompack/unpack"
+require "dicompack/stats"
 require "dicompack/remap"
 
 # TODO: require known SOP Class: 1.2.840.10008.5.1.4.1.1.2

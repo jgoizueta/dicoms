@@ -82,5 +82,18 @@ class DicomPack
       # rescue => raise Error?
       0
     end
+
+    desc "Level stats", "Level limits of one or more DICOM files"
+    def stats(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      settings = {} # TODO: ...
+      dicompack = DicomPack.new(settings)
+      stats = dicompack.stats dicom_dir
+      puts "Aggregate values for #{stats[:n]} DICOM files:"
+      puts "  Minimum level: #{stats[:min]}"
+      puts "  Next minimum level: #{stats[:next_min]}"
+      puts "  Maximum level: #{stats[:max]}"
+      0
+    end
   end
 end
