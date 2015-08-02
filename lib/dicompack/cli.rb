@@ -95,5 +95,34 @@ class DicomPack
       puts "  Maximum level: #{stats[:max]}"
       0
     end
+
+    desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
+    option :output,   desc: 'output directory', aliases: '-o'
+    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'window' # TODO: min max for fixed, etc.
+    option :axial,    desc: 'axial projection (N for single slice, avg, max for aggregation)'
+    option :sagittal, desc: 'sagittal projection (N for single slice, avg, max for aggregation)'
+    option :coronal,    desc: 'coronal projection (N for single slice, avg, max for aggregation)'
+    def projection(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      settings = {} # TODO: ...
+      unless File.directory?(dicom_dir)
+        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+        say options
+      end
+      packer = DicomPack.new(settings)
+      packer.projection(
+        dicom_dir,
+        {
+          strategy:  options.strategy.to_sym,
+          output: options.output,
+          axial: options.axial == 'axial' ? true : options.axial,
+          sagittal: options.sagittal == 'sagittal' ? true : options.sagittal,
+          coronal: options.coronal == 'coronal' ? true : options.coronal
+        }
+      )
+      # rescue => raise Error?
+      0
+    end
+
   end
 end

@@ -13,6 +13,7 @@ require "dicompack/extract"
 require "dicompack/pack"
 require "dicompack/unpack"
 require "dicompack/stats"
+require "dicompack/projection"
 require "dicompack/remap"
 
 # TODO: require known SOP Class: 1.2.840.10008.5.1.4.1.1.2
@@ -89,7 +90,11 @@ class DicomPack
 
   def save_jpg(dicom, output_image, strategy, min, max)
     keeping_path do
-      image = strategy.image(dicom, min, max)
+      if dicom.is_a?(Magick::Image)
+        image = dicom
+      else
+        image = strategy.image(dicom, min, max)
+      end
       if DICOM.image_processor == :mini_magick
         image.format('jpg')
       end
