@@ -5,14 +5,14 @@ class DicomPack
   # * :level - apply window leveling
   # * :drop_base_level - remove lowest level (only if not doing window leveling)
   def remap(dicom_directory, options = {})
-    dicom_files = find_dicom_files(dicom_directory)
-    if dicom_files.empty?
-      raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
+    if options[:strategy] != :unsigned
+      strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
     end
+    sequence = Sequence.new(dicom_directory, strategy: strategy)
+    min, max = sequence.metatada.min, sequence.metatada.max
 
     output_dir = options[:output] || (dicom_directory+'_remapped')
     FileUtils.mkdir_p output_dir
-
 
     if options[:strategy] != :unsigned
       strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
@@ -28,8 +28,7 @@ class DicomPack
       dd = nil
     end
 
-    dicom_files.each do |file|
-      d = DICOM::DObject.read(file)
+    sequence.each do |d, i, file|
       if dd_hack
         dd = d.derivation_description if first
         d.derivation_description = dd

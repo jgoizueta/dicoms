@@ -54,9 +54,9 @@ class DicomPack
       @width  = options[:width]
     end
 
-    def min_max(files)
+    def min_max(sequence)
       # TODO: use options to sample/take first/take all?
-      dicom = DICOM::DObject.read(files.first)
+      dicom = sequence.first
       data_range dicom
     end
 
@@ -64,11 +64,7 @@ class DicomPack
       center = (min + max)/2
       width = max - min
       data = dicom.narray(level: [center, width])
-      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
-      data -= min
-      data *= (output_max - output_min).to_f/(max - min)
-      data += output_min
-      data
+      map_to_output dicom, data, min, max
     end
 
     # def image(dicom, min, max)
@@ -80,6 +76,14 @@ class DicomPack
     private
 
     USE_DATA = false
+
+    def map_to_output(dicom, data, min, max)
+      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      data -= min
+      data *= (output_max - output_min).to_f/(max - min)
+      data += output_min
+      data
+    end
 
     def data_range(dicom)
       if USE_DATA
@@ -116,11 +120,9 @@ class DicomPack
       super options
     end
 
-    def min_max(files)
-      files = select_files(files)
+    def min_max(sequence)
       v0 = minimum = maximum = nil
-      files.each do |file|
-        d = DICOM::DObject.read(file)
+      select_dicoms(sequence) do |d|
         d_v0, d_min, d_max = data_range(d)
         v0 ||= d_v0
         minimum ||= d_min
@@ -193,7 +195,7 @@ class DicomPack
       super options
     end
 
-    def min_max(files)
+    def min_max(sequence)
       # TODO: set default min, max regarding dicom data type
       [@fixed_min, @fixed_max]
     end
@@ -204,8 +206,8 @@ class DicomPack
 
     private
 
-    def select_files(files)
-      files
+    def select_dicoms(sequence, &blk)
+      sequence.each &blk
     end
 
   end
@@ -219,8 +221,8 @@ class DicomPack
 
     private
 
-    def select_files(files)
-      [files.first].compact
+    def select_dicoms(sequence, &blk)
+      blk[sequence.first] if sequence.size > 0
     end
 
   end
@@ -234,9 +236,11 @@ class DicomPack
 
     private
 
-    def select_files(files)
-      n = [files.size, @max_files].min
-      files.sample(n)
+    def select_dicoms(sequence, &blk)
+      n = [sequence.size, @max_files].min
+      (0...sequence.size).to_a.sample(n).sort.each do |i|
+        blk[sequence.dicom(i)]
+      end
     end
 
   end
