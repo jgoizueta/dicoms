@@ -1,3 +1,5 @@
+require 'rmagick'
+
 class DicomPack
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
@@ -7,13 +9,12 @@ class DicomPack
     sequence = Sequence.new(dicom_directory, strategy: strategy)
 
     extract_dir = options[:output] || File.join(dicom_directory, 'images')
-    FileUtils.mkdir_p FileUtils.mkdir_p pack_dir
-    prefix = nil
-    min, max = sequence.metatada.min, sequence.metatada.max
+    FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
+    min, max = sequence.metadata.min, sequence.metadata.max
 
-    xaxis = decode_vector(sequence.metadata.xaxis
-    yaxis = decode_vector(sequence.metadata.yaxis
-    zaxis = decode_vector(sequence.metadata.zaxis
+    xaxis = decode_vector(sequence.metadata.xaxis)
+    yaxis = decode_vector(sequence.metadata.yaxis)
+    zaxis = decode_vector(sequence.metadata.zaxis)
     if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
        yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
        zaxis[0] != 0 || zaxis[1] != 0 || zaxis[2].abs != 1
@@ -54,22 +55,19 @@ class DicomPack
     keeping_path do
       sequence.each do |dicom, z, file|
         slice = strategy.image(dicom, min, max)
-        unless prefix
-          prefix, name_pattern, start_number = dicom_name_pattern(file, extract_dir)
-        end
 
         if aggregation
           (0...maxx).each do |x|
             (0...maxy).each do |y|
-              d = slice.pixel(x, y)
+              d = get_image_pixel(slice, x, y)
               if aggregate_projection?(options[:axial])
                 update_projection(axial, axis_index(x, maxx, reverse_x), axis_index(y, maxy, reverse_y), d, options[:axial])
               end
               if aggregate_projection?(options[:sagittal])
-                update_projection(saggital, axis_index(y, maxy, !reverse_y), axis_index(z, maxz, !reverse_z), d, options[:sagittal])
+                update_projection(sagittal, axis_index(y, maxy, !reverse_y), axis_index(z, maxz, !reverse_z), d, options[:sagittal])
               end
               if aggregate_projection?(options[:coronal])
-                update_projection(coronal axis_index(x, maxx, reverse_x), axis_index(z, maxz, !reverse_z), d, options[:coronal])
+                update_projection(coronal, axis_index(x, maxx, reverse_x), axis_index(z, maxz, !reverse_z), d, options[:coronal])
               end
             end
           end
@@ -86,7 +84,7 @@ class DicomPack
           save_axial_slice = true
         end
         if save_axial_slice
-          output_image = output_file_name(extract_dir, prefix, file)
+          output_image = output_file_name(extract_dir, 'axial_#{z}_', file)
           image = slice
           if reverse_x
             image = image.flop
@@ -98,7 +96,7 @@ class DicomPack
         end
 
         # currently full projection now supported for sagittal, coronal
-        # TODO: for that case repeat this for each saggital/coronal slice
+        # TODO: for that case repeat this for each sagittal/coronal slice
         if single_slice_projection?(options[:coronal])
           i = axis_index(options[:coronal].to_i, maxy, reverse_y)
           j = axis_index(z, maxz, !reverse_z)
@@ -117,7 +115,18 @@ class DicomPack
           end
         end
       end
-      # TODO: save axial (if aggregate), coronal, sagittal
+      if coronal
+        output_image = output_file_name(extract_dir, '', "coronal_#{options['coronal']}")
+        save_jpg coronal, output_image, strategy, min, max
+      end
+      if sagittal
+        output_image = output_file_name(extract_dir, '', "sagittal_#{options['sagittal']}")
+        save_jpg sagittal, output_image, strategy, min, max
+      end
+      if axial && aggregate_projection?(options[:axial])
+        output_image = output_file_name(extract_dir, '', "axial_#{options['axial']}")
+        save_jpg axial, output_image, strategy, min, max
+      end
     end
   end
 
@@ -139,11 +148,11 @@ class DicomPack
     axis_selection.is_a?(String)  && /\A\d+\Z/ =~ axis_selection
   end
 
-  def set_image_pixel(i, j, value)
+  def set_image_pixel(image, i, j, value)
     image.pixel_color i, j, Magick::Pixel.new(value, value, value, 0)
   end
 
-  def get_image_pizel(i, j)
+  def get_image_pixel(image, i, j)
     image.pixel_color(i, j).intensity
   end
 
