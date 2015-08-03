@@ -7,9 +7,15 @@ class DicomPack
     def initialize(options = {})
     end
 
+    # Remapped DICOM pixel values as an Image
     def image(dicom, min, max)
-      dicom.pixels = processed_data(dicom, min, max)
+      dicom.pixels = pixels(dicom, min, max)
       dicom.image
+    end
+
+    # Remapped DICOM pixel values as an NArray
+    def pixels(dicom, min, max)
+      processed_data(dicom, min, max)
     end
 
     def self.min_max_strategy(strategy, options = {})

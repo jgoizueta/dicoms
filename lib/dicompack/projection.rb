@@ -12,6 +12,12 @@ class DicomPack
     FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
     min, max = sequence.metadata.min, sequence.metadata.max
 
+     if sequence.metadata.max <= 255
+       bits = 8
+     else
+       bits = 16
+    end
+
     xaxis = decode_vector(sequence.metadata.xaxis)
     yaxis = decode_vector(sequence.metadata.yaxis)
     zaxis = decode_vector(sequence.metadata.zaxis)
@@ -32,101 +38,90 @@ class DicomPack
                   aggregate_projection?(options[:sagittal]) ||
                   aggregate_projection?(options[:coronal])
 
-    # Initialize axial/sagittal/coronal views needed:
-    if aggregate_projection?(options[:axial])
-      view_maxx = maxx
-      view_maxy = maxy
-      axial = Magick::Image.new(view_maxx, view_maxy) { self.background_color = 'black' }
-      # TODO: use a Matrix of Floats for options[:axial] == 'avg'; better yet: use narray
-    end
-    if options[:coronal]
-      view_maxx = maxx
-      view_maxy = maxz
-      coronal = Magick::Image.new(view_maxx, view_maxy) { self.background_color = 'black' }
-      # TODO: use a Matrix of Floats for options[:coronal] == 'avg'; better yet: use narray
-    end
-    if options[:sagittal]
-      view_maxx = maxy
-      view_maxy = maxz
-      sagittal = Magick::Image.new(view_maxx, view_maxy) { self.background_color = 'black' }
-      # TODO: use a Matrix of Floats for options[:sagittal] == 'avg'; better yet: use narray
-    end
-
+    # Load all the slices into a (big) 3D array
+    # With type NArray::SINT instead of NArray::INT we would use up half the
+    # memory, but each slice to be converted to image would have to be
+    # convertd to INT...
+    # volume = NArray.sint(maxx, maxy, maxz)
+    volume = NArray.int(maxx, maxy, maxz)
     keeping_path do
       sequence.each do |dicom, z, file|
-        slice = strategy.image(dicom, min, max)
+        puts file
+        slice = strategy.pixels(dicom, min, max)
+        volume[true, true, z] = slice
+      end
+    end
+    # volume.add! -volume.min
+    volume.add! -sequence.metadata.lim_min
 
-        if aggregation
-          (0...maxx).each do |x|
-            (0...maxy).each do |y|
-              d = get_image_pixel(slice, x, y)
-              if aggregate_projection?(options[:axial])
-                update_projection(axial, axis_index(x, maxx, reverse_x), axis_index(y, maxy, reverse_y), d, options[:axial])
-              end
-              if aggregate_projection?(options[:sagittal])
-                update_projection(sagittal, axis_index(y, maxy, !reverse_y), axis_index(z, maxz, !reverse_z), d, options[:sagittal])
-              end
-              if aggregate_projection?(options[:coronal])
-                update_projection(coronal, axis_index(x, maxx, reverse_x), axis_index(z, maxz, !reverse_z), d, options[:coronal])
-              end
-            end
-          end
-          # TODO: if 'avg' aggregation is used, now pixel values must be divided by:
-          # * axial: maxz
-          # * sagittal: maxx
-          # * coronal: maxy
-        end
-        if single_slice_projection?(options[:axial])
-          if options[:axial].to_i == axis_index(z, maxz, reverse_z)
-            save_axial_slice = true
-          end
-        elsif full_projection?(options[:axial])
-          save_axial_slice = true
-        end
-        if save_axial_slice
-          output_image = output_file_name(extract_dir, 'axial_#{z}_', file)
-          image = slice
-          if reverse_x
-            image = image.flop
-          end
-          if reverse_y
-            image = image.flip
-          end
-          save_jpg image, output_image, strategy, min, max
-        end
+    # TODO: if full_projection?(options[projection]))
+    #       generate also 'avg' & 'max' for that projection
 
-        # currently full projection now supported for sagittal, coronal
-        # TODO: for that case repeat this for each sagittal/coronal slice
-        if single_slice_projection?(options[:coronal])
-          i = axis_index(options[:coronal].to_i, maxy, reverse_y)
-          j = axis_index(z, maxz, !reverse_z)
-          # row i of slice becomes row j of coronal view
-          (0...maxx).each do |k|
-            set_image_pixel coronal, axis_index(k, maxx, reverse_x), j, get_image_pixel(slice, k, i)
-          end
-        end
+    if single_slice_projection?(options[:axial])
+      axial_zs = [options[:axial].to_i]
+    elsif full_projection?(options[:axial])
+      axial_zs = (0...maxz)
+    else
+      axial_zs = []
+    end
+    axial_zs.each do |z|
+      slice = volume[true, true, z]
+      output_image = output_file_name(extract_dir, 'axial_', "#{z}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
+    end
 
-        if single_slice_projection?(options[:sagittal])
-          i = axis_index(options[:sagittal].to_i, maxx, reverse_x)
-          j = axis_index(z, maxz, !reverse_z)
-          # column i of slice becomes row j of sagittal view in reverse order
-          (0...maxy).each do |k|
-            set_image_pixel sagittal, axis_index(k, maxy, !reverse_y), j, get_image_pixel(slice, i, k)
-          end
-        end
+    if single_slice_projection?(options[:sagittal])
+      sagittal_xs = [options[:sagittal].to_i]
+    elsif full_projection?(options[:sagittal])
+      sagittal_xs = (0...maxx)
+    else
+      sagittal_xs = []
+    end
+    sagittal_xs.each do |x|
+      slice = volume[x, true, true]
+      output_image = output_file_name(extract_dir, 'sagittal_', "#{x}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
+    end
+
+    if single_slice_projection?(options[:coronal])
+      coronal_ys = [options[:coronal].to_i]
+    elsif full_projection?(options[:coronal])
+      coronal_ys = (0...maxx)
+    else
+      coronal_ys = []
+    end
+    coronal_ys.each do |y|
+      slice = volume[true, y, true]
+      output_image = output_file_name(extract_dir, 'coronal_', "#{y}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
+    end
+
+    if aggregate_projection?(options[:axial])
+      if options[:axial] == 'max'
+        slice = volume.max(2) # aggregate dimension 2 (z)
+      else # 'avg'
+        slice = volume.mean(2)
       end
-      if coronal
-        output_image = output_file_name(extract_dir, '', "coronal_#{options['coronal']}")
-        save_jpg coronal, output_image, strategy, min, max
+      output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
+    end
+    if aggregate_projection?(options[:coronal])
+      if options[:coronal] == 'max'
+        slice = volume.max(1) # aggregate dimension 1 (y)
+      else # 'avg'
+        slice = volume.mean(1)
       end
-      if sagittal
-        output_image = output_file_name(extract_dir, '', "sagittal_#{options['sagittal']}")
-        save_jpg sagittal, output_image, strategy, min, max
+      output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
+    end
+    if aggregate_projection?(options[:sagittal])
+      if options[:sagittal] == 'max'
+        slice = volume.max(0) # aggregate dimension 0 (x)
+      else # 'avg'
+        slice = volume.mean(0)
       end
-      if axial && aggregate_projection?(options[:axial])
-        output_image = output_file_name(extract_dir, '', "axial_#{options['axial']}")
-        save_jpg axial, output_image, strategy, min, max
-      end
+      output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
+      save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
     end
   end
 
@@ -148,27 +143,18 @@ class DicomPack
     axis_selection.is_a?(String)  && /\A\d+\Z/ =~ axis_selection
   end
 
-  def set_image_pixel(image, i, j, value)
-    image.pixel_color i, j, Magick::Pixel.new(value, value, value, 0)
-  end
-
-  def get_image_pixel(image, i, j)
-    image.pixel_color(i, j).intensity
-  end
-
-  def update_projection(image, col, row, value, aggregation)
-    case aggregation
-    when 'max'
-      prev_value = get_image_pixel(image, col, row)
-      if prev_value && prev_value < value
-        set_image_pixel image, col, row, value
-      end
-    when 'avg'
-      # TODO: this cannot be handled like this: need to use an array to avoid overflow
-      # (use Floats to avoid large integers too)
-      prev_value = get_image_pixel(image, col, row) || 0
-      set_image_pixel image, col, row, prev_value + value
-    end
+  def save_pixels(pixels, output_image, options = {})
+    bits = options[:bit_depth] || 16
+    reverse_x = options[:reverse_x]
+    reverse_y = options[:reverse_y]
+    columns, rows = pixels.shape
+    rm_type = bits == 8 ? Magick::CharPixel : Magick::ShortPixel
+    # blob = pixels.to_blob(bits)
+    # image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, rm_type, blob, 'I')
+    image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', pixels.flatten, rm_type)
+    image.flip! if reverse_y
+    image.flop! if reverse_x
+    image.write(output_image)
   end
 
 end
