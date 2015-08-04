@@ -95,11 +95,12 @@ class DicomPack
       output_range = output_max - output_min
       input_range  = max - min
       float_arith = FLOAT_MAPPING || output_range < input_range
-      data = data.to_f if float_arith
+      data_type = data.typecode
+      data = data.to_type(NArray::SFLOAT) if float_arith
       data.sbt! min
       data.mul! (output_range).to_f/(input_range)
       data.add! output_min
-      data = data.round if float_arith
+      data = data.to_type(data_type) if float_arith
       data
     end
 
@@ -158,13 +159,14 @@ class DicomPack
       input_range  = max - min
       float_arith = FLOAT_MAPPING || output_range < input_range
       data = dicom.narray(level: false, remap: @rescale)
-      data = data.to_f if float_arith
+      data_type = data.typecode
+      data = data.to_type(NArray::SFLOAT) if float_arith
       data.sbt! min
       data.mul! output_range/input_range.to_f
       data.add! output_min
       data[data < output_min] = output_min
       data[data > output_max] = output_max
-      data = data.round if float_arith
+      data = data.to_type(data_type) if float_arith
       data
     end
 
