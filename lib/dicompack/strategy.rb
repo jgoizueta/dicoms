@@ -1,7 +1,12 @@
 class DicomPack
+
+  # Classes derived from ... are used to map
+  # DICOM pixel values to output levels (gemeric presetation values).
+  # Each class defines a dynamic-rage strategy that
+  # Maps pixel values/presentation values to output levels.
   # A Dynamic-range strategy determines how are data values
-  # mapped to pixel intensities in images
-  class DynamicRangeStrategy
+  # mapped to pixel intensities in DICOM images
+  class DynamicRangeStrategy  # PixelValueMapper RageMapper Transfer
     # TODO: rename this class to RangeMapper or DataMapper ...
 
     def initialize(options = {})
@@ -67,6 +72,8 @@ class DicomPack
     end
 
     def processed_data(dicom, min, max)
+      # TODO: use floating point arithmetic, at least if output range is
+      #       smaller that input range.
       center = (min + max)/2
       width = max - min
       data = dicom.narray(level: [center, width])
@@ -85,9 +92,9 @@ class DicomPack
 
     def map_to_output(dicom, data, min, max)
       output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
-      data -= min
-      data *= (output_max - output_min).to_f/(max - min)
-      data += output_min
+      data.sbt! min
+      data.mul! (output_max - output_min).to_f/(max - min)
+      data.add! output_min
       data
     end
 
@@ -148,12 +155,14 @@ class DicomPack
       #     width = max - min
       #     dicom.narray(level: [center, width], min_allowed: min, max_allowd: max)
       #   ...
+      # TODO: use floating point arithmetic, at least if output range is
+      #       smaller that input range.
       output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
       data = dicom.narray(level: false, remap: @rescale)
       r = (max - min).to_f
-      data -= min
-      data *= (output_max - output_min)/r
-      data += output_min
+      data.sbt! min
+      data.mul! (output_max - output_min)/r
+      data.add! output_min
       data[data < output_min] = output_min
       data[data > output_max] = output_max
       data
