@@ -54,6 +54,8 @@ class DicomPack
       end
     end
 
+    FLOAT_MAPPING = true
+
   end
 
   # Apply window-clipping; also
@@ -72,8 +74,6 @@ class DicomPack
     end
 
     def processed_data(dicom, min, max)
-      # TODO: use floating point arithmetic, at least if output range is
-      #       smaller that input range.
       center = (min + max)/2
       width = max - min
       data = dicom.narray(level: [center, width])
@@ -92,9 +92,14 @@ class DicomPack
 
     def map_to_output(dicom, data, min, max)
       output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      output_range = output_max - output_min
+      input_range  = max - min
+      float_arith = FLOAT_MAPPING || output_range < input_range
+      data = data.to_f if float_arith
       data.sbt! min
-      data.mul! (output_max - output_min).to_f/(max - min)
+      data.mul! (output_range).to_f/(input_range)
       data.add! output_min
+      data = data.round if float_arith
       data
     end
 
@@ -148,23 +153,18 @@ class DicomPack
     end
 
     def processed_data(dicom, min, max)
-      # Note: if DICOM would provide a way to control the +min_allowed+, +max_allowed+ parameters it
-      # uses internally we could do this:
-      #   if @rescale # TODO: || intercept == 0 && slope == 1
-      #     center = (min + max)/2
-      #     width = max - min
-      #     dicom.narray(level: [center, width], min_allowed: min, max_allowd: max)
-      #   ...
-      # TODO: use floating point arithmetic, at least if output range is
-      #       smaller that input range.
       output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      output_range = output_max - output_min
+      input_range  = max - min
+      float_arith = FLOAT_MAPPING || output_range < input_range
       data = dicom.narray(level: false, remap: @rescale)
-      r = (max - min).to_f
+      data = data.to_f if float_arith
       data.sbt! min
-      data.mul! (output_max - output_min)/r
+      data.mul! output_range/input_range.to_f
       data.add! output_min
       data[data < output_min] = output_min
       data[data > output_max] = output_max
+      data = data.round if float_arith
       data
     end
 
