@@ -12,7 +12,7 @@ class DicomPack
     FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
     min, max = sequence.metadata.min, sequence.metadata.max
 
-     if sequence.metadata.max <= 255
+    if sequence.metadata.lim_max <= 255
        bits = 8
      else
        bits = 16
@@ -43,10 +43,14 @@ class DicomPack
     # memory, but each slice to be converted to image would have to be
     # convertd to INT...
     # volume = NArray.sint(maxx, maxy, maxz)
-    volume = NArray.int(maxx, maxy, maxz)
+    if bits == 8
+      # TODO: support signed too
+      volume = NArray.byte(maxx, maxy, maxz)
+    else
+      volume = NArray.int(maxx, maxy, maxz)
+    end
     keeping_path do
       sequence.each do |dicom, z, file|
-        puts file
         slice = strategy.pixels(dicom, min, max)
         volume[true, true, z] = slice
       end
@@ -143,15 +147,40 @@ class DicomPack
     axis_selection.is_a?(String)  && /\A\d+\Z/ =~ axis_selection
   end
 
+  ASSIGN_PIXELS_FROM_ARRAY = true
+
   def save_pixels(pixels, output_image, options = {})
     bits = options[:bit_depth] || 16
     reverse_x = options[:reverse_x]
     reverse_y = options[:reverse_y]
     columns, rows = pixels.shape
-    rm_type = bits == 8 ? Magick::CharPixel : Magick::ShortPixel
-    # blob = pixels.to_blob(bits)
-    # image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, rm_type, blob, 'I')
-    image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', pixels.flatten, rm_type)
+
+    if ASSIGN_PIXELS_FROM_ARRAY || Magick::MAGICKCORE_QUANTUM_DEPTH == bits
+      # assign from array
+      if Magick::MAGICKCORE_QUANTUM_DEPTH != bits
+        if bits == 8
+          # scale up the data
+          pixels = pixels.to_type(NArray::INT)
+          pixels.mul! 256
+        else
+          # scale down
+          pixels.div! 256
+          pixels = pixels.to_type(NArray::BYTE) # FIXME: necessary?
+        end
+      end
+      image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', pixels.flatten)
+    else
+      # Pack to a String (blob) and let Magick do the conversion
+      if bit == 8
+        rm_type = Magick::CharPixel
+        blob = pixels.to_a.pack('C*')
+      else
+        rm_type = Magick::ShortPixel
+        blob = pixels.to_a.pack('S<*')
+      end
+      image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', blob, rm_type)
+    end
+
     image.flip! if reverse_y
     image.flop! if reverse_x
     image.write(output_image)
