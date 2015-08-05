@@ -101,12 +101,20 @@ class DicomPack
       image
     end
 
-    def dicom_pixels(dicom)
+    # To use the pixels to be directly saved to an image,
+    # use the `:unsigned` option to obtain usigned intensity values.
+    # If the pixels are to be assigned as Dicom pixels
+    # ('Dicom#pixels=') they don't need to be unsigned.
+    def dicom_pixels(dicom, options = {})
       if @strategy
-        @strategy.pixels(dicom, metadata.min, metadata.max)
+        pixels = @strategy.pixels(dicom, metadata.min, metadata.max)
       else
-        dicom.narray(level: false, remap: true)
+        pixels = dicom.narray(level: false, remap: true)
       end
+      if options[:unsigned] && metadata.lim_min < 0
+        pixels.add! -metadata.lim_min
+      end
+      pixels
     end
 
     private

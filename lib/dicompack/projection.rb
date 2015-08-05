@@ -10,7 +10,6 @@ class DicomPack
 
     extract_dir = options[:output] || File.join(dicom_directory, 'images')
     FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
-    min, max = sequence.metadata.min, sequence.metadata.max
 
     if sequence.metadata.lim_max <= 255
        bits = 8
@@ -51,12 +50,10 @@ class DicomPack
     end
     keeping_path do
       sequence.each do |dicom, z, file|
-        slice = strategy.pixels(dicom, min, max)
+        slice = sequence.dicom_pixels(dicom, unsigned: true)
         volume[true, true, z] = slice
       end
     end
-    # volume.add! -volume.min
-    volume.add! -sequence.metadata.lim_min
 
     # TODO: if full_projection?(options[projection]))
     #       generate also 'avg' & 'max' for that projection
