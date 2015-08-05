@@ -10,6 +10,7 @@ class DicomPack
     # TODO: rename this class to RangeMapper or DataMapper ...
 
     def initialize(options = {})
+      @force_8_bit_processing = (options[:bits] == 8)
     end
 
     # Remapped DICOM pixel values as an Image
@@ -37,6 +38,14 @@ class DicomPack
         strategy_class = SampleStrategy
       end
       strategy_class.new options
+    end
+
+    def min_max_limits(dicom)
+      if @force_8_bit_processing
+        [0, 255]
+      else
+        DynamicRangeStrategy.min_max_limits(dicom)
+      end
     end
 
     def self.min_max_limits(dicom)
@@ -91,7 +100,7 @@ class DicomPack
     USE_DATA = false
 
     def map_to_output(dicom, data, min, max)
-      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      output_min, output_max = min_max_limits(dicom)
       output_range = output_max - output_min
       input_range  = max - min
       float_arith = FLOAT_MAPPING || output_range < input_range
@@ -154,7 +163,7 @@ class DicomPack
     end
 
     def processed_data(dicom, min, max)
-      output_min, output_max = DynamicRangeStrategy.min_max_limits(dicom)
+      output_min, output_max = min_max_limits(dicom)
       output_range = output_max - output_min
       input_range  = max - min
       float_arith = FLOAT_MAPPING || output_range < input_range

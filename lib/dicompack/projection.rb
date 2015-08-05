@@ -5,6 +5,9 @@ class DicomPack
   def projection(dicom_directory, options = {})
     #use subdirectories axial, sagittal, coronal, slice names and avg/max sufixes
 
+    # We can save on memory use by using 8-bit processing:
+    options = options.merge(bits: 8)
+
     strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
     sequence = Sequence.new(dicom_directory, strategy: strategy)
 

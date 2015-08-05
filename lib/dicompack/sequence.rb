@@ -145,7 +145,11 @@ class DicomPack
           first_md = first_md
         end
         unless lim_min
-          lim_min, lim_max = DynamicRangeStrategy.min_max_limits(dicom)
+          if @strategy
+            lim_min, lim_max = @strategy.min_max_limits(dicom)
+          else
+            lim_min, lim_max = DynamicRangeStrategy.min_max_limits(dicom)
+          end
         end
       }
 
