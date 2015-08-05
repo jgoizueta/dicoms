@@ -88,20 +88,6 @@ class DicomPack
   #   data
   # end
 
-  def save_jpg(dicom, output_image, strategy, min, max)
-    keeping_path do
-      if dicom.is_a?(Magick::Image)
-        image = dicom
-      else
-        image = strategy.image(dicom, min, max)
-      end
-      if DICOM.image_processor == :mini_magick
-        image.format('jpg')
-      end
-      image.write(output_image)
-    end
-  end
-
   def check_command(command)
     unless command.success?
       puts "Error executing:"

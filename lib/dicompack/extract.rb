@@ -13,7 +13,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, extract_dir)
       end
       output_image = output_file_name(extract_dir, prefix, file)
-      save_jpg d, output_image, strategy, min, max
+      sequence.save_jpg d, output_image
     end
     # TODO: save sequence.metadata as yml/JSON in pack_dir
     extract_dir

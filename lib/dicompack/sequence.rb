@@ -42,10 +42,11 @@ class DicomPack
       end
       @visitors = Array(options[:visit])
       @metadata = nil
-      compute_metadata! options[:strategy]
+      @strategy = options[:strategy]
+      compute_metadata!
     end
 
-    attr_reader :files
+    attr_reader :files, :strategy
     attr_accessor :metadata
 
     include Support
@@ -77,9 +78,40 @@ class DicomPack
       end
     end
 
+    def save_jpg(dicom, filename)
+      keeping_path do
+        image = dicom_image(dicom)
+        image.write(filename)
+      end
+    end
+
+    def dicom_image(dicom)
+      if dicom.is_a?(Magick::Image)
+        image = dicom
+      else
+        if @strategy
+          image = @strategy.image(dicom, metadata.min, metadata.max)
+        else
+          image = dicom.image
+        end
+      end
+      if DICOM.image_processor == :mini_magick
+        image.format('jpg')
+      end
+      image
+    end
+
+    def dicom_pixels(dicom)
+      if @strategy
+        @strategy.pixels(dicom, metadata.min, metadata.max)
+      else
+        dicom.narray(level: false, remap: true)
+      end
+    end
+
     private
 
-    def compute_metadata!(strategy)
+    def compute_metadata!
       # TODO: with stored metadata option, if metadata exist in dicom dir, use it
       # and store it first time it is computed
 
@@ -111,8 +143,8 @@ class DicomPack
 
       metadata = Settings[]
 
-      if strategy
-        min, max = strategy.min_max(self)
+      if @strategy
+        min, max = @strategy.min_max(self)
         metadata.merge! min: min, max: max
       end
 

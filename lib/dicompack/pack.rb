@@ -20,7 +20,7 @@ class DicomPack
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
-      save_jpg d, output_image, strategy, min, max
+      sequence.save_jpg d, output_image
     end
     if options[:dicom_metadata]
       metadata_file = File.join(pack_fir, 'ffmetadata')
