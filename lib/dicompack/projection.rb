@@ -9,6 +9,7 @@ class DicomPack
     #       options for this method or application configuration settings.
     @assign_pixels_from_array = true # seems to be faster
     @aap_adjust_for_number_of_slices = true
+    @normalize_images = true
 
     # We can save on memory use by using 8-bit processing:
     options = options.merge(bits: 8)
@@ -71,7 +72,9 @@ class DicomPack
     axial_zs.each do |z, suffix|
       slice = volume[true, true, z]
       output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        normalize: @normalize_images
     end
 
     if single_slice_projection?(options[:sagittal])
@@ -86,7 +89,9 @@ class DicomPack
     sagittal_xs.each do |x, suffix|
       slice = volume[x, true, true]
       output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        normalize: @normalize_images
     end
 
     if single_slice_projection?(options[:coronal])
@@ -101,7 +106,9 @@ class DicomPack
     coronal_ys.each do |y, suffix|
       slice = volume[true, y, true]
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        normalize: @normalize_images
     end
 
     float_v = nil
@@ -122,7 +129,9 @@ class DicomPack
         slice = maximum_intensity_projection(volume, Z_AXIS)
       end
       output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        normalize: @normalize_images
     end
     if aggregate_projection?(options[:coronal])
       if options[:coronal] == 'aap'
@@ -135,7 +144,9 @@ class DicomPack
          slice = maximum_intensity_projection(volume, Y_AXIS)
       end
       output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        normalize: @normalize_images
     end
     if aggregate_projection?(options[:sagittal])
       if options[:sagittal] == 'aap'
@@ -148,7 +159,9 @@ class DicomPack
         slice = maximum_intensity_projection(volume, X_AXIS)
       end
       output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
-      save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        normalize: @normalize_images
     end
     float_v = nil
   end
@@ -201,6 +214,7 @@ class DicomPack
     bits = options[:bit_depth] || 16
     reverse_x = options[:reverse_x]
     reverse_y = options[:reverse_y]
+    normalize = options[:normalize]
     columns, rows = pixels.shape
 
     if @assign_pixels_from_array
@@ -231,6 +245,7 @@ class DicomPack
 
     image.flip! if reverse_y
     image.flop! if reverse_x
+    image = image.normalize if normalize
     image.write(output_image)
   end
 
