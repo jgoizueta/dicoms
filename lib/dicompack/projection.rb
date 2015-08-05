@@ -36,19 +36,15 @@ class DicomPack
     maxy = sequence.metadata.ny
     maxz = sequence.metadata.nz
 
-    aggregation = aggregate_projection?(options[:axial]) ||
-                  aggregate_projection?(options[:sagittal]) ||
-                  aggregate_projection?(options[:coronal])
-
     # Load all the slices into a (big) 3D array
-    # With type NArray::SINT instead of NArray::INT we would use up half the
-    # memory, but each slice to be converted to image would have to be
-    # convertd to INT...
-    # volume = NArray.sint(maxx, maxy, maxz)
     if bits == 8
       # TODO: support signed too
       volume = NArray.byte(maxx, maxy, maxz)
     else
+      # With type NArray::SINT instead of NArray::INT we would use up half the
+      # memory, but each slice to be converted to image would have to be
+      # convertd to INT...
+      # volume = NArray.sint(maxx, maxy, maxz)
       volume = NArray.int(maxx, maxy, maxz)
     end
     keeping_path do
@@ -57,9 +53,6 @@ class DicomPack
         volume[true, true, z] = slice
       end
     end
-
-    # TODO: if full_projection?(options[projection]))
-    #       generate also 'avg' & 'max' for that projection
 
     if single_slice_projection?(options[:axial])
       axial_zs = [options[:axial].to_i]
@@ -100,47 +93,86 @@ class DicomPack
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
     end
 
+    float_v = nil
+    if options.values_at(:axial, :coronal, :sagittal).include?('aap')
+      # It's gonna take memory... (a whole lot of precious memory)
+      float_v ||= volume.to_type(NArray::SFLOAT)
+      # To enhance result contrast we will apply a gamma of x**4
+      float_v.mul! 1.0/float_v.max
+      float_v.mul! float_v
+      float_v.mul! float_v
+    end
     if aggregate_projection?(options[:axial])
-      if options[:axial] == 'max'
-        slice = volume.max(2) # aggregate dimension 2 (z)
-      else # 'avg'
-        slice = volume.mean(2)
+      if options[:axial] == 'aap'
+        slice = accumulated_attenuation_projection(
+          float_v, Z_AXIS, sequence.metadata.lim_max
+        ).to_type(volume.typecode)
+      else # 'mip' ('*' is also handled here)
+        slice = maximum_intensity_projection(volume, Z_AXIS)
       end
       output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
     end
     if aggregate_projection?(options[:coronal])
-      if options[:coronal] == 'max'
-        slice = volume.max(1) # aggregate dimension 1 (y)
-      else # 'avg'
-        slice = volume.mean(1)
+      if options[:coronal] == 'aap'
+        # It's gonna take memory... (a whole lot of precious memory)
+        float_v ||= volume.to_type(NArray::SFLOAT)
+        slice = accumulated_attenuation_projection(
+          float_v, Y_AXIS, sequence.metadata.lim_max
+        ).to_type(volume.typecode)
+      else # 'mip' ('*' is also handled here)
+         slice = maximum_intensity_projection(volume, Y_AXIS)
       end
       output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
     end
     if aggregate_projection?(options[:sagittal])
-      if options[:sagittal] == 'max'
-        slice = volume.max(0) # aggregate dimension 0 (x)
-      else # 'avg'
-        slice = volume.mean(0)
+      if options[:sagittal] == 'app'
+        # It's gonna take memory... (a whole lot of precious memory)
+        float_v ||= volume.to_type(NArray::SFLOAT)
+        slice = accumulated_attenuation_projection(
+          float_v, X_AXIS, sequence.metadata.lim_max
+        ).to_type(volume.typecode)
+      else # 'mip' ('*' is also handled here)
+        slice = maximum_intensity_projection(volume, X_AXIS)
       end
       output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
       save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
     end
+    float_v = nil
   end
 
   private
+
+  X_AXIS = 0
+  Y_AXIS = 1
+  Z_AXIS = 2
+
+  def maximum_intensity_projection(v, axis)
+    v.max(axis)
+  end
+
+  def accumulated_attenuation_projection(float_v, axis, max_output_level)
+    k = 0.02
+    v = float_v.sum(axis)
+    v.mul! -k
+    v = NMath.exp(v)
+    # Invert result (from attenuation to transmission)
+    v.mul! -max_output_level
+    v.add! max_output_level
+    v
+  end
 
   def axis_index(v, maxv, reverse)
     reverse ? maxv - v : v
   end
 
   def aggregate_projection?(axis_selection)
-    ['avg', 'max'].include?(axis_selection)
+    ['*', 'mip', 'aap'].include?(axis_selection)
   end
 
   def full_projection?(axis_selection)
-    axis_selection == true
+    axis_selection == '*'
   end
 
   def single_slice_projection?(axis_selection)

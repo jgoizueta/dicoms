@@ -99,9 +99,9 @@ class DicomPack
     desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
     option :output,   desc: 'output directory', aliases: '-o'
     option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'window' # TODO: min max for fixed, etc.
-    option :axial,    desc: 'axial projection (N for single slice, avg, max for aggregation)'
-    option :sagittal, desc: 'sagittal projection (N for single slice, avg, max for aggregation)'
-    option :coronal,    desc: 'coronal projection (N for single slice, avg, max for aggregation)'
+    option :axial,    desc: 'axial projection (N for single slice, mip, aap for aggregation, * for all)'
+    option :sagittal, desc: 'sagittal projection (N for single slice, mip, aap for aggregation, * for all)'
+    option :coronal,    desc: 'coronal projection (N for single slice, mip, aap for aggregation, * for all)'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -115,9 +115,9 @@ class DicomPack
         {
           strategy:  options.strategy.to_sym,
           output: options.output,
-          axial: options.axial == 'axial' ? true : options.axial,
-          sagittal: options.sagittal == 'sagittal' ? true : options.sagittal,
-          coronal: options.coronal == 'coronal' ? true : options.coronal
+          axial: options.axial == 'axial' ? 'mip' : options.axial,
+          sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
+          coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
         }
       )
       # rescue => raise Error?
