@@ -152,7 +152,7 @@ class DicomPack
     reverse_y = options[:reverse_y]
     columns, rows = pixels.shape
 
-    if ASSIGN_PIXELS_FROM_ARRAY || Magick::MAGICKCORE_QUANTUM_DEPTH == bits
+    if ASSIGN_PIXELS_FROM_ARRAY
       # assign from array
       if Magick::MAGICKCORE_QUANTUM_DEPTH != bits
         if bits == 8
