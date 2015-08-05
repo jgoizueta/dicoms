@@ -143,6 +143,7 @@ class DicomPack
   class RangeStrategy < DynamicRangeStrategy
 
     def initialize(options = {})
+      options = { drop_base: true }.merge(options)
       @rescale = options[:rescale]
       @drop_base = options[:drop_base]
       @extension_factor = options[:extend] || 0.0
