@@ -56,40 +56,46 @@ class DicomPack
 
     if single_slice_projection?(options[:axial])
       axial_zs = [options[:axial].to_i]
+    elsif middle_slice_projection?(options[:axial])
+      axial_zs = [[maxz/2, 'm']]
     elsif full_projection?(options[:axial])
       axial_zs = (0...maxz)
     else
       axial_zs = []
     end
-    axial_zs.each do |z|
+    axial_zs.each do |z, suffix|
       slice = volume[true, true, z]
-      output_image = output_file_name(extract_dir, 'axial_', "#{z}")
+      output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y
     end
 
     if single_slice_projection?(options[:sagittal])
       sagittal_xs = [options[:sagittal].to_i]
+    elsif middle_slice_projection?(options[:sagittal])
+      sagittal_xs = [[maxx/2, 'm']]
     elsif full_projection?(options[:sagittal])
       sagittal_xs = (0...maxx)
     else
       sagittal_xs = []
     end
-    sagittal_xs.each do |x|
+    sagittal_xs.each do |x, suffix|
       slice = volume[x, true, true]
-      output_image = output_file_name(extract_dir, 'sagittal_', "#{x}")
+      output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
       save_pixels slice, output_image, bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z
     end
 
     if single_slice_projection?(options[:coronal])
       coronal_ys = [options[:coronal].to_i]
+    elsif middle_slice_projection?(options[:coronal])
+      coronal_ys = [[maxy/2, 'm']]
     elsif full_projection?(options[:coronal])
       coronal_ys = (0...maxx)
     else
       coronal_ys = []
     end
-    coronal_ys.each do |y|
+    coronal_ys.each do |y, suffix|
       slice = volume[true, y, true]
-      output_image = output_file_name(extract_dir, 'coronal_', "#{y}")
+      output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
     end
 
@@ -176,7 +182,11 @@ class DicomPack
   end
 
   def single_slice_projection?(axis_selection)
-    axis_selection.is_a?(String)  && /\A\d+\Z/ =~ axis_selection
+    axis_selection.is_a?(String) && /\A\d+\Z/i =~ axis_selection
+  end
+
+  def middle_slice_projection?(axis_selection)
+    axis_selection.downcase == 'm'
   end
 
   ASSIGN_PIXELS_FROM_ARRAY = true # benchmarking determines it is faster

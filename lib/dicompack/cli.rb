@@ -99,15 +99,18 @@ class DicomPack
     desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
     option :output,   desc: 'output directory', aliases: '-o'
     option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'window' # TODO: min max for fixed, etc.
-    option :axial,    desc: 'axial projection (N for single slice, mip, aap for aggregation, * for all)'
-    option :sagittal, desc: 'sagittal projection (N for single slice, mip, aap for aggregation, * for all)'
-    option :coronal,    desc: 'coronal projection (N for single slice, mip, aap for aggregation, * for all)'
+    option :axial,    desc: 'N for single slice, * all, M middle, mip, aap aggregation'
+    option :sagittal, desc: 'N for single slice, * all, M middle, mip, aap aggregation'
+    option :coronal,  desc: 'N for single slice, * all, M middle, mip, aap aggregation'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
       unless File.directory?(dicom_dir)
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
+      end
+      unless options.axial || options.sagittal || options.coronal
+        raise Error, "Must specify at least one projection (axial/sagittal/coronal)"
       end
       packer = DicomPack.new(settings)
       packer.projection(
