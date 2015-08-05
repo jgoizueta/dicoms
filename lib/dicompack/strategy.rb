@@ -74,6 +74,7 @@ class DicomPack
     def initialize(options = {})
       @center = options[:center]
       @width  = options[:width]
+      super options
     end
 
     def min_max(sequence)
