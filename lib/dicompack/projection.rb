@@ -5,6 +5,11 @@ class DicomPack
   def projection(dicom_directory, options = {})
     #use subdirectories axial, sagittal, coronal, slice names and avg/max sufixes
 
+    # TODO: these should be either be DicomPack instance settings,
+    #       options for this method or application configuration settings.
+    @assign_pixels_from_array = true # seems to be faster
+    @aap_adjust_for_number_of_slices = true
+
     # We can save on memory use by using 8-bit processing:
     options = options.merge(bits: 8)
 
@@ -111,7 +116,7 @@ class DicomPack
     if aggregate_projection?(options[:axial])
       if options[:axial] == 'aap'
         slice = accumulated_attenuation_projection(
-          float_v, Z_AXIS, sequence.metadata.lim_max
+          float_v, Z_AXIS, sequence.metadata.lim_max, maxz
         ).to_type(volume.typecode)
       else # 'mip' ('*' is also handled here)
         slice = maximum_intensity_projection(volume, Z_AXIS)
@@ -124,7 +129,7 @@ class DicomPack
         # It's gonna take memory... (a whole lot of precious memory)
         float_v ||= volume.to_type(NArray::SFLOAT)
         slice = accumulated_attenuation_projection(
-          float_v, Y_AXIS, sequence.metadata.lim_max
+          float_v, Y_AXIS, sequence.metadata.lim_max, maxy
         ).to_type(volume.typecode)
       else # 'mip' ('*' is also handled here)
          slice = maximum_intensity_projection(volume, Y_AXIS)
@@ -137,7 +142,7 @@ class DicomPack
         # It's gonna take memory... (a whole lot of precious memory)
         float_v ||= volume.to_type(NArray::SFLOAT)
         slice = accumulated_attenuation_projection(
-          float_v, X_AXIS, sequence.metadata.lim_max
+          float_v, X_AXIS, sequence.metadata.lim_max, maxx
         ).to_type(volume.typecode)
       else # 'mip' ('*' is also handled here)
         slice = maximum_intensity_projection(volume, X_AXIS)
@@ -158,8 +163,11 @@ class DicomPack
     v.max(axis)
   end
 
-  def accumulated_attenuation_projection(float_v, axis, max_output_level)
+  def accumulated_attenuation_projection(float_v, axis, max_output_level, max=500)
     k = 0.02
+    if @aap_adjust_for_number_of_slices
+      k *= 500.0/max
+    end
     v = float_v.sum(axis)
     v.mul! -k
     v = NMath.exp(v)
@@ -189,15 +197,13 @@ class DicomPack
     axis_selection.downcase == 'm'
   end
 
-  ASSIGN_PIXELS_FROM_ARRAY = true # benchmarking determines it is faster
-
   def save_pixels(pixels, output_image, options = {})
     bits = options[:bit_depth] || 16
     reverse_x = options[:reverse_x]
     reverse_y = options[:reverse_y]
     columns, rows = pixels.shape
 
-    if ASSIGN_PIXELS_FROM_ARRAY
+    if @assign_pixels_from_array
       # assign from array
       if Magick::MAGICKCORE_QUANTUM_DEPTH != bits
         if bits == 8
