@@ -171,7 +171,7 @@ class DicomPack
       image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', pixels.flatten)
     else
       # Pack to a String (blob) and let Magick do the conversion
-      if bit == 8
+      if bits == 8
         rm_type = Magick::CharPixel
         blob = pixels.to_a.pack('C*')
       else
