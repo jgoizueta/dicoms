@@ -189,7 +189,7 @@ class DicomPack
       maximum = data.max
       if @drop_base
         base = minimum
-        minumum  = data[data > base].min
+        minimum  = (data[data > base].min)
       end
       if @extension_factor != 0
         # extend the range
