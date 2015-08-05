@@ -144,7 +144,7 @@ class DicomPack
     axis_selection.is_a?(String)  && /\A\d+\Z/ =~ axis_selection
   end
 
-  ASSIGN_PIXELS_FROM_ARRAY = true
+  ASSIGN_PIXELS_FROM_ARRAY = true # benchmarking determines it is faster
 
   def save_pixels(pixels, output_image, options = {})
     bits = options[:bit_depth] || 16
