@@ -133,7 +133,7 @@ class DicomPack
       save_pixels slice, output_image, bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z
     end
     if aggregate_projection?(options[:sagittal])
-      if options[:sagittal] == 'app'
+      if options[:sagittal] == 'aap'
         # It's gonna take memory... (a whole lot of precious memory)
         float_v ||= volume.to_type(NArray::SFLOAT)
         slice = accumulated_attenuation_projection(
