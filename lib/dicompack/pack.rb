@@ -14,7 +14,6 @@ class DicomPack
 
     name_pattern = start_number = prefix = nil
 
-    min, max = sequence.metadata.min, sequence.metadata.max
     sequence.each do |d, i, file|
       unless name_pattern
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
