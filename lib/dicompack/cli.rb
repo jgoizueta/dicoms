@@ -99,9 +99,9 @@ class DicomPack
     desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
     option :output,   desc: 'output directory', aliases: '-o'
     option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'window' # TODO: min max for fixed, etc.
-    option :axial,    desc: 'N for single slice, * all, M middle, mip, aap aggregation'
-    option :sagittal, desc: 'N for single slice, * all, M middle, mip, aap aggregation'
-    option :coronal,  desc: 'N for single slice, * all, M middle, mip, aap aggregation'
+    option :axial,    desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
+    option :sagittal, desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
+    option :coronal,  desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...

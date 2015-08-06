@@ -42,6 +42,14 @@ class DicomPack
     maxy = sequence.metadata.ny
     maxz = sequence.metadata.nz
 
+    # minimum and maximum slices with non-(almost)-blank contents
+    minx_contents = maxx
+    maxx_contents = 0
+    miny_contents = maxy
+    maxy_contents = 0
+    minz_contents = maxz
+    maxz_contents = 0
+
     # Load all the slices into a (big) 3D array
     if bits == 8
       # TODO: support signed too
@@ -57,13 +65,34 @@ class DicomPack
       sequence.each do |dicom, z, file|
         slice = sequence.dicom_pixels(dicom, unsigned: true)
         volume[true, true, z] = slice
+        if center_slice_projection?(options[:axial])
+          minz_contents, maxz_contents = update_min_max_contents(
+            z, slice.max, maxy, minz_contents, maxz_contents
+          )
+        end
+      end
+    end
+
+    if center_slice_projection?(options[:coronal])
+      (0...maxy).each do |y|
+        miny_contents, maxy_contents = update_min_max_contents(
+          y, volume[true, y, true].max, maxy, miny_contents, maxy_contents
+        )
+      end
+    end
+
+    if center_slice_projection?(options[:sagittal])
+      (0...maxz).each do |z|
+        minz_contents, maxz_contents = update_min_max_contents(
+          z, volume[true, true, z].max, maxz, minz_contents, maxz_contents
+        )
       end
     end
 
     if single_slice_projection?(options[:axial])
       axial_zs = [options[:axial].to_i]
-    elsif middle_slice_projection?(options[:axial])
-      axial_zs = [[maxz/2, 'm']]
+    elsif center_slice_projection?(options[:axial])
+      axial_zs = [[(minz_contents+maxz_contents)/2, 'c']]
     elsif full_projection?(options[:axial])
       axial_zs = (0...maxz)
     else
@@ -79,8 +108,8 @@ class DicomPack
 
     if single_slice_projection?(options[:sagittal])
       sagittal_xs = [options[:sagittal].to_i]
-    elsif middle_slice_projection?(options[:sagittal])
-      sagittal_xs = [[maxx/2, 'm']]
+    elsif center_slice_projection?(options[:sagittal])
+      sagittal_xs = [[(minx_contents+maxx_contents)/2, 'c']]
     elsif full_projection?(options[:sagittal])
       sagittal_xs = (0...maxx)
     else
@@ -96,8 +125,8 @@ class DicomPack
 
     if single_slice_projection?(options[:coronal])
       coronal_ys = [options[:coronal].to_i]
-    elsif middle_slice_projection?(options[:coronal])
-      coronal_ys = [[maxy/2, 'm']]
+    elsif center_slice_projection?(options[:coronal])
+      coronal_ys = [[(miny_contents+maxy_contents)/2, 'c']]
     elsif full_projection?(options[:coronal])
       coronal_ys = (0...maxx)
     else
@@ -172,6 +201,14 @@ class DicomPack
   Y_AXIS = 1
   Z_AXIS = 2
 
+  def update_min_max_contents(pos, max, ref_max, current_min, current_max)
+    if max/ref_max.to_f >= 0.05
+      current_min = [current_min, pos].min
+      current_max = [current_max, pos].max
+    end
+    [current_min, current_max]
+  end
+
   def maximum_intensity_projection(v, axis)
     v.max(axis)
   end
@@ -206,8 +243,8 @@ class DicomPack
     axis_selection.is_a?(String) && /\A\d+\Z/i =~ axis_selection
   end
 
-  def middle_slice_projection?(axis_selection)
-    axis_selection.downcase == 'm'
+  def center_slice_projection?(axis_selection)
+    axis_selection.downcase == 'c'
   end
 
   def save_pixels(pixels, output_image, options = {})
