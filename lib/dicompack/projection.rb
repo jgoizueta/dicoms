@@ -12,7 +12,7 @@ class DicomPack
     @normalize_images = true
 
     # We can save on memory use by using 8-bit processing:
-    options = options.merge(bits: 8)
+    options = options.merge(output: :byte)
 
     strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
     sequence = Sequence.new(dicom_directory, strategy: strategy)

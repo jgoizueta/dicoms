@@ -131,5 +131,13 @@ class DicomPack
       pattern = output_file_name(output_dir, prefix, file)
       [prefix, pattern, number]
     end
+
+    def dicom_slope_intercept(dicom)
+      intercept_element = dicom['0028,1052']
+      intercept = intercept_element ? intercept_element.value.to_i : 0
+      slope_element = dicom['0028,1053']
+      slope = slope_element ? slope_element.value.to_i : 1
+      [slope, intercept]
+    end
   end
 end

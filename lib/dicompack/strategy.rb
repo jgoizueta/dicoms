@@ -6,11 +6,19 @@ class DicomPack
   # Maps pixel values/presentation values to output levels.
   # A Dynamic-range strategy determines how are data values
   # mapped to pixel intensities in DICOM images
+  #
+  # Any Strategy class can pass an :output option to the base
+  # which changes output range from what is stored in the DICOM.
+  # Two values are supported:
+  #
+  # * :byte Output consist of single byte values (0-255)
+  # * :unsigned Output is always unsigned
+  #
   class DynamicRangeStrategy  # PixelValueMapper RageMapper Transfer
     # TODO: rename this class to RangeMapper or DataMapper ...
 
     def initialize(options = {})
-      @force_8_bit_processing = (options[:bits] == 8)
+      @output = options[:output]
     end
 
     # Remapped DICOM pixel values as an Image
@@ -25,7 +33,7 @@ class DicomPack
     end
 
     def self.min_max_strategy(strategy, options = {})
-      case strategy
+      case strategy.to_sym
       when :fixed
         strategy_class = FixedStrategy
       when :window
@@ -36,13 +44,23 @@ class DicomPack
         strategy_class = GlobalStrategy
       when :sample
         strategy_class = SampleStrategy
+      when :identity
+        strategy_class = IdentityStrategy
       end
       strategy_class.new options
     end
 
     def min_max_limits(dicom)
-      if @force_8_bit_processing
+      case @output
+      when :byte
         [0, 255]
+      when :unsigned
+        min, max = DynamicRangeStrategy.min_max_limits(dicom)
+        if min < 0
+          min = 0
+          max -= min
+        end
+        [min, max]
       else
         DynamicRangeStrategy.min_max_limits(dicom)
       end
@@ -212,7 +230,6 @@ class DicomPack
 
   end
 
-
   class FixedStrategy < RangeStrategy
 
     def initialize(options = {})
@@ -271,5 +288,30 @@ class DicomPack
       end
     end
 
+  end
+
+  # Preserve internal values.
+  # Can be used with the output: :unsinged option
+  # to convert signed values to unsinged.
+  class IdentityStrategy < FixedStrategy
+    def initialize(options = {})
+      super options
+    end
+
+    def min_max(sequence)
+      min_max_limits(sequence.first)
+    end
+
+    def map_to_output(dicom, data, min, max)
+      if @rescale
+        slope, intercept = dicom_slope_intercept(dicom)
+        if slope != 1 || intercept != 0
+          return super
+        end
+      end
+      data = dicom.narray
+      data.add! -min if min < 0
+      data
+    end
   end
 end

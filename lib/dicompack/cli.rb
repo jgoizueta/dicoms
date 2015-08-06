@@ -127,5 +127,28 @@ class DicomPack
       0
     end
 
+    desc "Remap DICOM-DIR", "convert DICOM pixel values"
+    option :output,   desc: 'output directory', aliases: '-o'
+    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'identity'
+    option :unsigned, desc: 'unsigned dynamic range', aliases: '-u'
+    def remap(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      strategy_parameters = {
+      }
+      strategy_parameters[:output] = :unsigned if options.unsigned
+      settings = {} # TODO: ...
+      unless File.directory?(dicom_dir)
+        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+        say options
+      end
+      packer = DicomPack.new(settings)
+      packer.remap(
+        dicom_dir,
+        strategy: [options.strategy.to_sym, strategy_parameters],
+        output: options.output
+      )
+      # rescue => raise Error?
+      0
+    end
   end
 end
