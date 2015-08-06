@@ -93,6 +93,8 @@ class DicomPack
       axial_zs = [options[:axial].to_i]
     elsif center_slice_projection?(options[:axial])
       axial_zs = [[(minz_contents+maxz_contents)/2, 'c']]
+    elsif middle_slice_projection?(options[:axial])
+      axial_zs = [[maxz/2, 'm']]
     elsif full_projection?(options[:axial])
       axial_zs = (0...maxz)
     else
@@ -110,6 +112,8 @@ class DicomPack
       sagittal_xs = [options[:sagittal].to_i]
     elsif center_slice_projection?(options[:sagittal])
       sagittal_xs = [[(minx_contents+maxx_contents)/2, 'c']]
+    elsif middle_slice_projection?(options[:sagittal])
+      sagittal_xs = [[maxx/2, 'm']]
     elsif full_projection?(options[:sagittal])
       sagittal_xs = (0...maxx)
     else
@@ -127,6 +131,8 @@ class DicomPack
       coronal_ys = [options[:coronal].to_i]
     elsif center_slice_projection?(options[:coronal])
       coronal_ys = [[(miny_contents+maxy_contents)/2, 'c']]
+    elsif middle_slice_projection?(options[:coronal])
+      coronal_ys = [[maxy/2, 'm']]
     elsif full_projection?(options[:coronal])
       coronal_ys = (0...maxx)
     else
@@ -245,6 +251,10 @@ class DicomPack
 
   def center_slice_projection?(axis_selection)
     axis_selection.downcase == 'c'
+  end
+
+  def middle_slice_projection?(axis_selection)
+    axis_selection.downcase == 'm'
   end
 
   def save_pixels(pixels, output_image, options = {})
