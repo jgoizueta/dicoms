@@ -7,14 +7,13 @@ class DicomPack
 
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
-    # We can save on memory use by using 8-bit processing:
-    options = options.merge(output: :byte)
-
-    strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
-    sequence = Sequence.new(dicom_directory, strategy: strategy)
+    # We can save on memory use by using 8-bit processing, so it will be the default
+    strategy = define_transfer(options, :window, output: :byte)
+    sequence = Sequence.new(dicom_directory, transfer: strategy)
 
     extract_dir = options[:output] || File.join(dicom_directory, 'images')
-    FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
+    puts extract_dir.inspect
+    FileUtils.mkdir_p extract_dir
 
     if sequence.metadata.lim_max <= 255
        bits = 8
@@ -246,11 +245,11 @@ class DicomPack
   end
 
   def center_slice_projection?(axis_selection)
-    axis_selection.downcase == 'c'
+    axis_selection && axis_selection.downcase == 'c'
   end
 
   def middle_slice_projection?(axis_selection)
-    axis_selection.downcase == 'm'
+    axis_selection && axis_selection.downcase == 'm'
   end
 
   def save_pixels(pixels, output_image, options = {})

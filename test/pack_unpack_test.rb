@@ -3,11 +3,11 @@ require 'test_helper'
 describe DicomPack do
 
   strategies = [
-    [{ strategy: :first, drop_base: false }, 'first'],
-    [{ strategy: :first, drop_base: true }, 'first-drop'],
-    [{ strategy: :global, drop_base: false }, 'global'],
-    [{ strategy: :global, drop_base: true }, 'global-drop'],
-    [{ strategy: :window }, 'window'],
+    [ [:first, ignore_min: false], 'first'],
+    [ [:first, ignore_min: true], 'first-drop'],
+    [ [:global, ignore_min: false], 'global'],
+    [ [:global, ignore_min: true], 'global-drop'],
+    [ :window, 'window'],
   ]
 
   before do
@@ -41,7 +41,8 @@ describe DicomPack do
         dicompack = DicomPack.new(settings)
         dicompack.extract(
           @dicom_dir,
-          strategy.merge(output: @img_dir)
+          transfer: strategy,
+          output: @img_dir
         )
         img_files = Dir[File.join(@img_dir, '*')].sort
         num_imgs = img_files.size
@@ -52,7 +53,8 @@ describe DicomPack do
         dicompack = DicomPack.new(settings)
         dicompack.pack(
           @dicom_dir,
-          strategy.merge(output: @pack_name, tmp: @tmp_dir)
+          transfer: strategy,
+          output: @pack_name, tmp: @tmp_dir
         )
 
         assert File.file?(@pack_file), "Packed file #{@pack_file} exists"

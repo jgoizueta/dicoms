@@ -5,8 +5,8 @@ class DicomPack
     # bit depth, signed/unsigned, rescale, window, data values corresponding
     # to minimum (black) and maximum (white)
 
-    strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
-    sequence = Sequence.new(dicom_directory, strategy: strategy)
+    strategy = define_transfer(options, :sample)
+    sequence = Sequence.new(dicom_directory, transfer: strategy)
 
     output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
     pack_dir = options[:tmp] || 'dicompack_tmp' # TODO:...

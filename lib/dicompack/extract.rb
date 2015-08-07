@@ -1,8 +1,8 @@
 class DicomPack
   # extract the images of a set of DICOM files
   def extract(dicom_directory, options = {})
-    strategy = DynamicRangeStrategy.min_max_strategy(options[:strategy] || :fixed, options)
-    sequence = Sequence.new(dicom_directory, strategy: strategy)
+    strategy = define_transfer(options, :window)
+    sequence = Sequence.new(dicom_directory, transfer: strategy)
 
     extract_dir = options[:output] || File.join(dicom_directory, 'images')
     FileUtils.mkdir_p FileUtils.mkdir_p extract_dir

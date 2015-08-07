@@ -19,11 +19,15 @@ class DicomPack
     desc "pack DICOM-DIR", "pack a DICOM directory"
     option :output,   desc: 'output file', aliases: '-o'
     option :tmp,      desc: 'temporary directory'
-    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'sample'
+    option :transfer,   desc: 'transfer method', aliases: '-t', default: 'identity'
+    option :center,     desc: 'center (window transfer)', aliases: '-c'
+    option :width,      desc: 'window (window transfer)', aliases: '-w'
+    option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
+    option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
     def pack(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       strategy_parameters = {
-        drop_base: true
+        ignore_min: true
       }
       settings = {} # TODO: ...
       unless File.directory?(dicom_dir)
@@ -33,11 +37,9 @@ class DicomPack
       packer = DicomPack.new(settings)
       packer.pack(
         dicom_dir,
-        strategy_parameters.merge(
-          strategy:  options.strategy.to_sym,
-          output: options.output,
-          tmp:  options.tmp
-        )
+        transfer: DicomPack.transfer_options(options),
+        output: options.output,
+        tmp:  options.tmp
       )
       # rescue => raise Error?
       0
@@ -60,24 +62,23 @@ class DicomPack
 
     desc "extract DICOM-DIR", "extract images from a set of DICOM files"
     option :output,   desc: 'output directory', aliases: '-o'
-    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'sample'
-    def pack(dicom_dir)
+    option :transfer,   desc: 'transfer method', aliases: '-t', default: 'identity'
+    option :center,     desc: 'center (window transfer)', aliases: '-c'
+    option :width,      desc: 'window (window transfer)', aliases: '-w'
+    option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
+    option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    def extract(dicom_dir)
       DICOM.logger.level = Logger::FATAL
-      strategy_parameters = {
-        drop_base: true
-      }
       settings = {} # TODO: ...
-      unless File.directory?(dicom_dir)
+      unless File.exists?(dicom_dir)
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
       packer = DicomPack.new(settings)
       packer.extract(
         dicom_dir,
-        strategy_parameters.merge(
-          strategy:  options.strategy.to_sym,
-          output: options.output,
-        )
+        transfer: DicomPack.transfer_options(options),
+        output: options.output
       )
       # rescue => raise Error?
       0
@@ -98,10 +99,15 @@ class DicomPack
 
     desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
     option :output,   desc: 'output directory', aliases: '-o'
-    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'window' # TODO: min max for fixed, etc.
     option :axial,    desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
     option :sagittal, desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
     option :coronal,  desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
+    option :transfer,   desc: 'transfer method', aliases: '-t', default: 'identity'
+    # option :byte,       desc: 'transfer as bytes', aliases: '-b'
+    option :center,     desc: 'center (window transfer)', aliases: '-c'
+    option :width,      desc: 'window (window transfer)', aliases: '-w'
+    option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
+    option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -115,27 +121,27 @@ class DicomPack
       packer = DicomPack.new(settings)
       packer.projection(
         dicom_dir,
-        {
-          strategy:  options.strategy.to_sym,
-          output: options.output,
-          axial: options.axial == 'axial' ? 'mip' : options.axial,
-          sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
-          coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
-        }
+        transfer: DicomPack.transfer_options(options),
+        output: options.output,
+        axial: options.axial == 'axial' ? 'mip' : options.axial,
+        sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
+        coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
       )
       # rescue => raise Error?
       0
     end
 
     desc "Remap DICOM-DIR", "convert DICOM pixel values"
-    option :output,   desc: 'output directory', aliases: '-o'
-    option :strategy, desc: 'dynamic range strategy', aliases: '-s', default: 'identity'
-    option :unsigned, desc: 'unsigned dynamic range', aliases: '-u'
+    option :output,     desc: 'output directory', aliases: '-o'
+    option :transfer,   desc: 'transfer method', aliases: '-t', default: 'identity'
+    option :unsigned,   desc: 'transfer as unsigned', aliases: '-u'
+    # option :byte,       desc: 'transfer as bytes', aliases: '-b'
+    option :center,     desc: 'center (window transfer)', aliases: '-c'
+    option :width,      desc: 'window (window transfer)', aliases: '-w'
+    option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
+    option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
     def remap(dicom_dir)
       DICOM.logger.level = Logger::FATAL
-      strategy_parameters = {
-      }
-      strategy_parameters[:output] = :unsigned if options.unsigned
       settings = {} # TODO: ...
       unless File.directory?(dicom_dir)
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
@@ -144,11 +150,33 @@ class DicomPack
       packer = DicomPack.new(settings)
       packer.remap(
         dicom_dir,
-        strategy: [options.strategy.to_sym, strategy_parameters],
+        transfer: DicomPack.transfer_options(options),
         output: options.output
       )
       # rescue => raise Error?
       0
+    end
+  end
+
+  class <<self
+    def transfer_options(options)
+      strategy = options.transfer.to_sym
+      params = {}
+      params[:output] = :unsigned if options.unsigned
+      params[:output] = :byte     if options.byte
+      params[:center] = options.center.to_f if options.center
+      params[:width] = options.width.to_f if options.width
+      if options.ignore_min
+        params[:ignore_min] = true
+      elsif [:global, :first, :sample].include?(strategy)
+        params[:ignore_min] = false
+      end
+      params[:max_files] = options.samples if options.samples
+      if params.empty?
+        strategy
+      else
+        [strategy, params]
+      end
     end
   end
 end

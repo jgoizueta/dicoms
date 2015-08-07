@@ -138,5 +138,17 @@ class DicomPack
       slope = slope_element ? slope_element.value.to_i : 1
       [slope, intercept]
     end
+
+    def define_transfer(options, *defaults)
+      strategy, params = Array(options[:transfer])
+
+      unless defaults.first.is_a?(Hash)
+        default_strategy = defaults.shift.to_sym
+      end
+      defautl_strategy ||= :sample
+      default_params = defaults.shift || {}
+      raise "Invalid number of parametrs" unless defaults.empty?
+      Transfer.strategy strategy || default_strategy, default_params.merge(params || {})
+    end
   end
 end

@@ -1,20 +1,20 @@
 class DicomPack
 
-  # Classes derived from ... are used to map
-  # DICOM pixel values to output levels (gemeric presetation values).
-  # Each class defines a dynamic-rage strategy that
-  # Maps pixel values/presentation values to output levels.
-  # A Dynamic-range strategy determines how are data values
-  # mapped to pixel intensities in DICOM images
+  # Base class for Transfer strategy classes that define how
+  # the values of DICOM pixels are scales to be used as image pixels
+  # or to be processed as data (generic presentation values).
   #
-  # Any Strategy class can pass an :output option to the base
-  # which changes output range from what is stored in the DICOM.
+  # Different strategies determine how much of the original
+  # data dynamic range is preserved.
+  #
+  # All the Transfer-derived classes can pass an :output option to the base
+  # which changes output range limits from what is stored in the DICOM.
   # Two values are supported:
   #
   # * :byte Output consist of single byte values (0-255)
   # * :unsigned Output is always unsigned
   #
-  class DynamicRangeStrategy
+  class Transfer
     USE_DATA = false
 
     def initialize(options = {})
@@ -32,20 +32,25 @@ class DicomPack
       processed_data(dicom, min, max)
     end
 
-    def self.min_max_strategy(strategy, options = {})
+    def self.strategy(strategy, options = {})
+      if strategy.is_a?(Array) && options.empty?
+        strategy, options = strategy
+      end
       case strategy.to_sym
       when :fixed
-        strategy_class = FixedStrategy
+        strategy_class = FixedTransfer
       when :window
-        strategy_class = WindowStrategy
+        strategy_class = WindowTransfer
       when :first
-        strategy_class = FirstStrategy
+        strategy_class = FirstTransfer
       when :global
-        strategy_class = GlobalStrategy
+        strategy_class = GlobalTransfer
       when :sample
-        strategy_class = SampleStrategy
+        strategy_class = SampleTransfer
       when :identity
-        strategy_class = IdentityStrategy
+        strategy_class = IdentityTransfer
+      else
+        raise "INVALID: #{strategy.inspect}"
       end
       strategy_class.new options
     end
@@ -55,14 +60,14 @@ class DicomPack
       when :byte
         [0, 255]
       when :unsigned
-        min, max = DynamicRangeStrategy.min_max_limits(dicom)
+        min, max = Transfer.min_max_limits(dicom)
         if min < 0
           min = 0
           max -= min
         end
         [min, max]
       else
-        DynamicRangeStrategy.min_max_limits(dicom)
+        Transfer.min_max_limits(dicom)
       end
     end
 
@@ -87,7 +92,7 @@ class DicomPack
 
   # Apply window-clipping; also
   # always apply rescale (remap)
-  class WindowStrategy < DynamicRangeStrategy
+  class WindowTransfer < Transfer
 
     def initialize(options = {})
       @center = options[:center]
@@ -156,12 +161,20 @@ class DicomPack
   # and map the minimum/maximum input values
   # (determined by the particular strategy and files)
   # to the minimum/maximum output levels (black/white)
-  class RangeStrategy < DynamicRangeStrategy
+  #
+  # +:ignore_min+ is used to ignore the minimum level present in the data
+  # and look for the next minimum value. Usually the absolute minimum
+  # corresponds to parts of the image outside the registered area and has
+  # typically the value -2048 for CT images. The next minimum value
+  # usually corresponds to air and is what's taken as the image's minimum
+  # when this option is set to +true+.
+  #
+  class RangeTransfer < Transfer
 
     def initialize(options = {})
-      options = { drop_base: true }.merge(options)
+      options = { ignore_min: true }.merge(options)
       @rescale = options[:rescale]
-      @drop_base = options[:drop_base]
+      @ignore_min = options[:ignore_min]
       @extension_factor = options[:extend] || 0.0
       super options
     end
@@ -204,7 +217,7 @@ class DicomPack
       base = nil
       minimum = data.min
       maximum = data.max
-      if @drop_base
+      if @ignore_min
         base = minimum
         minimum  = (data[data > base].min)
       end
@@ -228,12 +241,12 @@ class DicomPack
 
   end
 
-  class FixedStrategy < RangeStrategy
+  class FixedTransfer < RangeTransfer
 
     def initialize(options = {})
       @fixed_min = options[:min] || -2048
       @fixed_max = options[:max] || +2048
-      options[:drop_base] = false
+      options[:ignore_min] = false
       options[:extend] = nil
       super options
     end
@@ -245,7 +258,7 @@ class DicomPack
 
   end
 
-  class GlobalStrategy < RangeStrategy
+  class GlobalTransfer < RangeTransfer
 
     private
 
@@ -255,7 +268,7 @@ class DicomPack
 
   end
 
-  class FirstStrategy < RangeStrategy
+  class FirstTransfer < RangeTransfer
 
     def initialize(options = {})
       extend = options[:extend] || 0.3
@@ -270,7 +283,7 @@ class DicomPack
 
   end
 
-  class SampleStrategy < RangeStrategy
+  class SampleTransfer < RangeTransfer
 
     def initialize(options = {})
       @max_files = options[:max_files] || 8
@@ -291,7 +304,7 @@ class DicomPack
   # Preserve internal values.
   # Can be used with the output: :unsinged option
   # to convert signed values to unsinged.
-  class IdentityStrategy < FixedStrategy
+  class IdentityTransfer < FixedTransfer
     def initialize(options = {})
       super options
     end

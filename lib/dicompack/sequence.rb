@@ -42,12 +42,16 @@ class DicomPack
       end
       @visitors = Array(options[:visit])
       @metadata = nil
-      @strategy = options[:strategy]
+      @strategy = options[:transfer]
       compute_metadata!
     end
 
     attr_reader :files, :strategy
     attr_accessor :metadata
+
+    def transfer
+      @strategy
+    end
 
     include Support
 
@@ -148,7 +152,7 @@ class DicomPack
           if @strategy
             lim_min, lim_max = @strategy.min_max_limits(dicom)
           else
-            lim_min, lim_max = DynamicRangeStrategy.min_max_limits(dicom)
+            lim_min, lim_max = Transfer.min_max_limits(dicom)
           end
         end
       }
