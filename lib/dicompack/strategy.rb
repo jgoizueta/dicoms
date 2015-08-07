@@ -14,8 +14,8 @@ class DicomPack
   # * :byte Output consist of single byte values (0-255)
   # * :unsigned Output is always unsigned
   #
-  class DynamicRangeStrategy  # PixelValueMapper RageMapper Transfer
-    # TODO: rename this class to RangeMapper or DataMapper ...
+  class DynamicRangeStrategy
+    USE_DATA = false
 
     def initialize(options = {})
       @output = options[:output]
@@ -115,8 +115,6 @@ class DicomPack
     # end
 
     private
-
-    USE_DATA = false
 
     def map_to_output(dicom, data, min, max)
       output_min, output_max = min_max_limits(dicom)

@@ -1,6 +1,13 @@
 require 'matrix'
 
 class DicomPack
+  USE_SLICE_Z = false
+  METADATA_TYPES = {
+    dx: :to_f, dy: :to_f, dz: :to_f,
+    nx: :to_i, ny: :to_i, nz: :to_i,
+    max: :to_i, min: :to_i
+  }
+
   module Support
     # Code that use images should be wrapped with this.
     #
@@ -67,14 +74,6 @@ class DicomPack
       end
       numeric_files.sort_by{ |text, name| text.to_i }.map(&:last) + non_numeric.sort
     end
-
-    METADATA_TYPES = {
-      dx: :to_f, dy: :to_f, dz: :to_f,
-      nx: :to_i, ny: :to_i, nz: :to_i,
-      max: :to_i, min: :to_i
-    }
-
-    USE_SLICE_Z = false
 
     def single_dicom_metadata(dicom)
       dx, dy = dicom.pixel_spacing.value.split('\\').map(&:to_f)

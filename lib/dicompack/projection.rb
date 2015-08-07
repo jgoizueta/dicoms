@@ -1,16 +1,12 @@
 require 'rmagick'
 
 class DicomPack
+  NORMALIZE_PROJECTION_IMAGES = true
+  ASSIGN_IMAGE_PIXELS_AS_ARRAY = true
+  ADJUST_AAP_FOR_WIDTH = true
+
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
-    #use subdirectories axial, sagittal, coronal, slice names and avg/max sufixes
-
-    # TODO: these should be either be DicomPack instance settings,
-    #       options for this method or application configuration settings.
-    @assign_pixels_from_array = true # seems to be faster
-    @aap_adjust_for_number_of_slices = true
-    @normalize_images = true
-
     # We can save on memory use by using 8-bit processing:
     options = options.merge(output: :byte)
 
@@ -105,7 +101,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
 
     if single_slice_projection?(options[:sagittal])
@@ -124,7 +120,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
 
     if single_slice_projection?(options[:coronal])
@@ -143,7 +139,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
 
     float_v = nil
@@ -166,7 +162,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
     if aggregate_projection?(options[:coronal])
       if options[:coronal] == 'aap'
@@ -181,7 +177,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
     if aggregate_projection?(options[:sagittal])
       if options[:sagittal] == 'aap'
@@ -196,7 +192,7 @@ class DicomPack
       output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-        normalize: @normalize_images
+        normalize: NORMALIZE_PROJECTION_IMAGES
     end
     float_v = nil
   end
@@ -221,7 +217,7 @@ class DicomPack
 
   def accumulated_attenuation_projection(float_v, axis, max_output_level, max=500)
     k = 0.02
-    if @aap_adjust_for_number_of_slices
+    if ADJUST_AAP_FOR_WIDTH
       k *= 500.0/max
     end
     v = float_v.sum(axis)
@@ -264,7 +260,7 @@ class DicomPack
     normalize = options[:normalize]
     columns, rows = pixels.shape
 
-    if @assign_pixels_from_array
+    if ASSIGN_IMAGE_PIXELS_AS_ARRAY
       # assign from array
       if Magick::MAGICKCORE_QUANTUM_DEPTH != bits
         if bits == 8
