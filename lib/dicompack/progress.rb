@@ -48,7 +48,7 @@ class DicomPack
       percent ||= 100
       if percent < 0
         # interpreted as percent of what's lef
-        percent = (100 - @progress)*percent/100.0
+        percent = (100 - @progress)*(-percent)/100.0
       end
       percent = [percent, 100 - @progress].min
       # @subprocess_end = @progress + percent
