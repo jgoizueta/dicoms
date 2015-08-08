@@ -14,7 +14,14 @@ class DicomPack
     def initialize(name, options = {})
       @name = name
       raise "A directory exists with that name" if File.directory?(@name)
-      @format = options[:format] || :json
+      @format = options[:format]
+      unless @format
+        if File.extname(@name) == '.json'
+          @format = :json
+        else
+          @format = :yaml
+        end
+      end
       contents = options[:initial_contents]
       if contents && !exists?
         # Create with given initial contents
