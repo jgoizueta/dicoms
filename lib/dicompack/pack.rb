@@ -9,7 +9,7 @@ class DicomPack
     progress.begin_subprocess 'reading_metadata', 2
 
     strategy = define_transfer(options, :sample)
-    sequence = Sequence.new(dicom_directory, transfer: strategy)
+    sequence = Sequence.new(dicom_directory, transfer: strategy, roi: options[:roi])
 
     output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
     pack_dir = options[:tmp] || 'dicompack_tmp' # TODO:...
@@ -33,6 +33,7 @@ class DicomPack
     end
     progress.begin_subprocess 'packing_images'
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-y' # overwrite existing files
       option '-loglevel', 'quiet'
       option '-hide_banner'
       option '-start_number', start_number

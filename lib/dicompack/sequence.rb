@@ -36,7 +36,27 @@ class DicomPack
   #
   class Sequence
     def initialize(dicom_directory, options = {})
+      @roi = options[:roi]
+      if @roi
+        if @roi.size == 6
+          first_x, last_x, first_y, last_y, first_z, last_z = @roi
+        else
+          xrange, yrange, zrange = @roi
+          first_x = xrange.first
+          last_x = xrange.last
+          last_x -= 1 if xrange.exclude_end?
+          first_y = yrange.first
+          last_y = yrange.last
+          last_y -= 1 if yrange.exclude_end?
+          first_z = zrange.first
+          last_z = zrange.last
+          last_z -= 1 if zrange.exclude_end?
+        end
+        @selected_slices = (first_z..last_z)
+        @image_cropping = [first_x, last_x, first_y, last_y]
+      end
       @files = find_dicom_files(dicom_directory)
+      @files = @files[@selected_slices] if @selected_slices
       if @files.empty?
         raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
       end
@@ -48,6 +68,7 @@ class DicomPack
 
     attr_reader :files, :strategy
     attr_accessor :metadata
+    attr_reader  :image_cropping
 
     def transfer
       @strategy
@@ -102,6 +123,11 @@ class DicomPack
       if DICOM.image_processor == :mini_magick
         image.format('jpg')
       end
+      if @image_cropping
+        @image_cropping.inspect
+        firstx, lastx, firsty, lasty = @image_cropping
+        image.crop! firstx, firsty, lastx-firstx+1, lasty-firsty+1
+      end
       image
     end
 
@@ -114,6 +140,10 @@ class DicomPack
         pixels = @strategy.pixels(dicom, metadata.min, metadata.max)
       else
         pixels = dicom.narray(level: false, remap: true)
+      end
+      if @image_cropping
+        firstx, lastx, firsty, lasty = @image_cropping
+        pixels = pixels[firstx..lastx, firsty..lasty]
       end
       if options[:unsigned] && metadata.lim_min < 0
         pixels.add! -metadata.lim_min
@@ -162,6 +192,15 @@ class DicomPack
       if @strategy
         min, max = @strategy.min_max(self)
         metadata.merge! min: min, max: max
+      end
+
+      if @roi
+        firstx, lastx, firsty, lasty, firstz, lastz = @roi
+        metadata.merge!(
+          firstx: firstx, lastx: lastx,
+          firsty: firsty, lasty: lasty,
+          firstz: firstz, lastz: lastz
+        )
       end
 
       # make sure at least two different DICOM files are visited
