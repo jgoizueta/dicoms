@@ -57,7 +57,11 @@ class DicomPack
       raise "Subprocess not started" unless @subprocess_start
       sub_fraction = value/@subprocess_size
       @progress = @subprocess_start + @subprocess_percent*sub_fraction
-      update @progress
+      if @subprocess_size < 20 || (value % 10) == 0
+        # frequently updated processes don't update the file every
+        # fime to avoid the overhead (just 1 in 10 times)
+        update @progress
+      end
     end
 
     def end_subprocess
