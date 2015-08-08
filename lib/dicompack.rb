@@ -7,6 +7,8 @@ require 'narray'
 require "dicompack/version"
 require "dicompack/meta_codec"
 require "dicompack/support"
+require "dicompack/shared_files"
+require "dicompack/progress"
 require "dicompack/sequence"
 require "dicompack/transfer"
 require "dicompack/extract"
