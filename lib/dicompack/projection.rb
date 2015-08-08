@@ -7,6 +7,9 @@ class DicomPack
 
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
+    progress = Progress.new('generating_projections', options)
+    progress.begin_subprocess 'reading_metadata', 1
+
     # We can save on memory use by using 8-bit processing, so it will be the default
     strategy = define_transfer(options, :window, output: :byte)
     sequence = Sequence.new(dicom_directory, transfer: strategy)
@@ -45,6 +48,13 @@ class DicomPack
     minz_contents = maxz
     maxz_contents = 0
 
+    if full_projection?(options[:axial]) || full_projection?(options[:coronal]) || full_projection?(options[:sagittal])
+      percent = 65
+    else
+      percent = 90
+    end
+    progress.begin_subprocess 'generating_volume', percent, maxz
+
     # Load all the slices into a (big) 3D array
     if bits == 8
       # TODO: support signed too
@@ -65,6 +75,7 @@ class DicomPack
             z, slice.max, maxy, minz_contents, maxz_contents
           )
         end
+        progress.update_subprocess z
       end
     end
 
@@ -95,13 +106,6 @@ class DicomPack
     else
       axial_zs = []
     end
-    axial_zs.each do |z, suffix|
-      slice = volume[true, true, z]
-      output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
-      save_pixels slice, output_image,
-        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-        normalize: NORMALIZE_PROJECTION_IMAGES
-    end
 
     if single_slice_projection?(options[:sagittal])
       sagittal_xs = [options[:sagittal].to_i]
@@ -113,13 +117,6 @@ class DicomPack
       sagittal_xs = (0...maxx)
     else
       sagittal_xs = []
-    end
-    sagittal_xs.each do |x, suffix|
-      slice = volume[x, true, true]
-      output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
-      save_pixels slice, output_image,
-        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-        normalize: NORMALIZE_PROJECTION_IMAGES
     end
 
     if single_slice_projection?(options[:coronal])
@@ -133,13 +130,40 @@ class DicomPack
     else
       coronal_ys = []
     end
-    coronal_ys.each do |y, suffix|
+
+    n = axial_zs.size + sagittal_xs.size + coronal_ys.size
+
+    progress.begin_subprocess 'generating_slices', -70, n if n > 0
+    axial_zs.each_with_index do |(z, suffix), i|
+      slice = volume[true, true, z]
+      output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        normalize: NORMALIZE_PROJECTION_IMAGES
+      progress.update_subprocess i
+    end
+    sagittal_xs.each_with_index do |(x, suffix), i|
+      slice = volume[x, true, true]
+      output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
+      save_pixels slice, output_image,
+        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        normalize: NORMALIZE_PROJECTION_IMAGES
+      progress.update_subprocess axial_zs.size + i
+    end
+    coronal_ys.each_with_index do |(y, suffix), i|
       slice = volume[true, y, true]
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
         normalize: NORMALIZE_PROJECTION_IMAGES
+      progress.update_subprocess axial_zs.size + sagittal_xs.size + i
     end
+
+    n = [:axial, :coronal, :sagittal].map{ |axis|
+      aggregate_projection?(options[axis]) ? 1 : 0
+    }.inject(&:+)
+    progress.begin_subprocess 'generating_projections', 100, n if n > 0
+    i = 0
 
     float_v = nil
     if options.values_at(:axial, :coronal, :sagittal).include?('aap')
@@ -162,6 +186,8 @@ class DicomPack
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
         normalize: NORMALIZE_PROJECTION_IMAGES
+      i += 1
+      progress.update_subprocess i
     end
     if aggregate_projection?(options[:coronal])
       if options[:coronal] == 'aap'
@@ -177,6 +203,8 @@ class DicomPack
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
         normalize: NORMALIZE_PROJECTION_IMAGES
+      i += 1
+      progress.update_subprocess i
     end
     if aggregate_projection?(options[:sagittal])
       if options[:sagittal] == 'aap'
@@ -192,8 +220,11 @@ class DicomPack
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
         normalize: NORMALIZE_PROJECTION_IMAGES
+      i += 1
+      progress.update_subprocess i
     end
     float_v = nil
+    progress.finish
   end
 
   private

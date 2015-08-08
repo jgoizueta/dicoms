@@ -1,11 +1,14 @@
 class DicomPack
   def unpack(pack_file, options = {})
+    progress = Progress.new('unpacking', options)
+
     unpack_dir = options[:output] || File.basename(pack_file, '.mkv')
     FileUtils.mkdir_p unpack_dir
 
     prefix = File.basename(pack_file, '.mkv')
     output_file_pattern = File.join(unpack_dir, "#{prefix}-%3d.jpeg")
 
+    progress.begin_subprocess 'extracting_images', -70
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
       option '-hide_banner'
       option '-loglevel', 'quiet'
@@ -16,6 +19,7 @@ class DicomPack
     ffmpeg.run error_output: :separate
     check_command ffmpeg
 
+    progress.begin_subprocess 'extracting_metadata', -10
     metadata_file = File.join(unpack_dir, 'metadata.txt')
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
       option '-hide_banner'
@@ -43,5 +47,9 @@ class DicomPack
     File.open(metadata_yaml, 'w') do |yaml|
       yaml.write metadata.to_yaml
     end
+
+    # progress.begin_subprocess 'generating_dicoms', 100
+    # ...
+    progress.finish
   end
 end

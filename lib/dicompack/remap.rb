@@ -2,6 +2,9 @@ class DicomPack
   # remap the dicom values of a set of images to maximize dynamic range
   # and avoid negative values
   def remap(dicom_directory, options = {})
+    progress = Progress.new('remapping', options)
+    progress.begin_subprocess 'reading_metadata', 2
+
     output_dir = options[:output] ||
       File.join(File.dirname(dicom_directory), File.basename(dicom_directory)+'_remapped')
     FileUtils.mkdir_p output_dir
@@ -15,6 +18,7 @@ class DicomPack
 
     dd = nil if dd_hack
 
+    progress.begin_subprocess 'remapping_slices', 100, sequence.size
     sequence.each do |dicom, i, file|
       if dd_hack
         dd ||= dicom.derivation_description
@@ -32,6 +36,8 @@ class DicomPack
       dicom.pixels = data
       output_file = File.join(output_dir, File.basename(file))
       dicom.write output_file
+      progress.update_subprocess i
     end
+    progress.finish    
   end
 end

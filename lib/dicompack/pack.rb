@@ -5,6 +5,9 @@ class DicomPack
     # bit depth, signed/unsigned, rescale, window, data values corresponding
     # to minimum (black) and maximum (white)
 
+    progress = Progress.new('packing', options)
+    progress.begin_subprocess 'reading_metadata', 2
+
     strategy = define_transfer(options, :sample)
     sequence = Sequence.new(dicom_directory, transfer: strategy)
 
@@ -14,18 +17,21 @@ class DicomPack
 
     name_pattern = start_number = prefix = nil
 
+    progress.begin_subprocess 'extracting_images', 60, sequence.size
     sequence.each do |d, i, file|
       unless name_pattern
         prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
       end
       output_image = output_file_name(pack_dir, prefix, file)
       sequence.save_jpg d, output_image
+      progress.update_subprocess i
     end
     if options[:dicom_metadata]
       metadata_file = File.join(pack_fir, 'ffmetadata')
       # TODO: filter-out elements to be ignored
       meta_codec.write_metadata(DICOM::DObject.read(dicom_files.first), metadata_file, sequence.metadata.to_h)
     end
+    progress.begin_subprocess 'packing_images'
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
       option '-loglevel', 'quiet'
       option '-hide_banner'
@@ -45,5 +51,6 @@ class DicomPack
     end
     ffmpeg.run error_output: :separate
     check_command ffmpeg
+    progress.finish
   end
 end
