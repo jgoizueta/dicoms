@@ -2,11 +2,14 @@ class DicomPack
   # remap the dicom values of a set of images to maximize dynamic range
   # and avoid negative values
   def remap(dicom_directory, options = {})
+    options = CommandOptions.new(options)
+
     progress = Progress.new('remapping', options)
     progress.begin_subprocess 'reading_metadata', 2
 
-    output_dir = options[:output] ||
+    output_dir = options.path_option(:output,
       File.join(File.dirname(dicom_directory), File.basename(dicom_directory)+'_remapped')
+    )
     FileUtils.mkdir_p output_dir
 
     strategy = define_transfer(options, :identity)
@@ -38,6 +41,6 @@ class DicomPack
       dicom.write output_file
       progress.update_subprocess i
     end
-    progress.finish    
+    progress.finish
   end
 end

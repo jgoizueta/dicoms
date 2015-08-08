@@ -7,6 +7,8 @@ class DicomPack
 
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
+    options = CommandOptions.new(options)
+
     progress = Progress.new('generating_projections', options)
     progress.begin_subprocess 'reading_metadata', 1
 
@@ -14,8 +16,7 @@ class DicomPack
     strategy = define_transfer(options, :window, output: :byte)
     sequence = Sequence.new(dicom_directory, transfer: strategy)
 
-    extract_dir = options[:output] || File.join(dicom_directory, 'images')
-    puts extract_dir.inspect
+    extract_dir = options.path_option(:output, File.join(dicom_directory, 'images'))
     FileUtils.mkdir_p extract_dir
 
     if sequence.metadata.lim_max <= 255

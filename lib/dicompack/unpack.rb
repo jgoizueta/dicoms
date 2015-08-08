@@ -1,8 +1,10 @@
 class DicomPack
   def unpack(pack_file, options = {})
+    options = CommandOptions.new(options)
+
     progress = Progress.new('unpacking', options)
 
-    unpack_dir = options[:output] || File.basename(pack_file, '.mkv')
+    unpack_dir = options.path_option(:output, File.basename(pack_file, '.mkv'))
     FileUtils.mkdir_p unpack_dir
 
     prefix = File.basename(pack_file, '.mkv')
