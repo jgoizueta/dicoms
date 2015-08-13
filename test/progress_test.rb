@@ -5,7 +5,7 @@ class ProgressTest < Minitest::Test
     @data_dir  = File.join('test', 'data')
     @progress_file_name = File.join(@data_dir, 'progress.json')
     FileUtils.rm @progress_file_name if File.exists?(@progress_file_name)
-    @progress_file = DicomPack::SharedFile.new(@progress_file_name)
+    @progress_file = DicomPack::SharedSettings.new(@progress_file_name)
   end
 
   def teardown

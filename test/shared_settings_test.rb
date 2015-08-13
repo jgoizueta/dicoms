@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class ShareFileTest < Minitest::Test
+class ShareSettingsTest < Minitest::Test
 
   def setup
     @data_dir  = File.join('test', 'data')
@@ -14,7 +14,7 @@ class ShareFileTest < Minitest::Test
 
   def test_shared_is_created_with_initial_contets
     refute File.file?(@test_file) # sanity chech
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       initial_contents: {
         value: 111
@@ -26,7 +26,7 @@ class ShareFileTest < Minitest::Test
 
   def test_shared_is_created_with_replace_contets
     refute File.file?(@test_file) # sanity chech
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value: 111
@@ -37,14 +37,14 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_contents_not_replaced_by_initial
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value: 111
       }
     )
     assert_equal 111, @shared.read.value # sanity chech
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       initial_contents: {
         value: 222
@@ -54,14 +54,14 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_contents_replaced
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value: 111
       }
     )
     assert_equal 111, @shared.read.value # sanity chech
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value: 222
@@ -71,7 +71,7 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_update
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value_a: 111,
@@ -95,7 +95,7 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_write
-    @shared = DicomPack::SharedFile.new(
+    @shared = DicomPack::SharedSettings.new(
       @test_file,
       replace_contents: {
         value_a: 111,

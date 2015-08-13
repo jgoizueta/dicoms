@@ -2,8 +2,9 @@ class DicomPack
   class Progress
     def initialize(description, options={})
       filename = options[:progress]
+      # TODO: if filename == :console, show progress on the console
       if filename
-        @file = SharedFile.new(
+        @file = SharedSettings.new(
           filename,
           replace_contents: {
             process: description,

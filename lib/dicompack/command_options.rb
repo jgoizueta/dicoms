@@ -3,7 +3,7 @@ class DicomPack
     def initialize(options)
       @base_dir = nil
       if settings_file = options.delete(:settings)
-        settings = SharedFile.new(settings_file).read
+        settings = SharedSettings.new(settings_file).read
         options = settings.merge(options)
         @base_dir = File.dirname(settings_file)
       else
