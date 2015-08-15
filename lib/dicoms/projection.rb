@@ -1,6 +1,6 @@
 require 'rmagick'
 
-class DicomPack
+class DicomS
   NORMALIZE_PROJECTION_IMAGES = true
   ASSIGN_IMAGE_PIXELS_AS_ARRAY = true
   ADJUST_AAP_FOR_WIDTH = true

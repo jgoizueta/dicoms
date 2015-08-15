@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   # remap the dicom values of a set of images to maximize dynamic range
   # and avoid negative values
   def remap(dicom_directory, options = {})

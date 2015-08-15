@@ -1,7 +1,7 @@
 require 'yaml'
 require 'json'
 
-class DicomPack
+class DicomS
 
   # Shared Settings are Settings stored in a SharedFile so
   # they can be used concurrently from different processes.

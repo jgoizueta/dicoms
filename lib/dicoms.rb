@@ -4,21 +4,21 @@ require 'modalsettings'
 require 'sys_cmd'
 require 'narray'
 
-require "dicompack/version"
-require "dicompack/meta_codec"
-require "dicompack/support"
-require "dicompack/shared_files"
-require "dicompack/shared_settings"
-require "dicompack/progress"
-require "dicompack/command_options"
-require "dicompack/sequence"
-require "dicompack/transfer"
-require "dicompack/extract"
-require "dicompack/pack"
-require "dicompack/unpack"
-require "dicompack/stats"
-require "dicompack/projection"
-require "dicompack/remap"
+require "dicoms/version"
+require "dicoms/meta_codec"
+require "dicoms/support"
+require "dicoms/shared_files"
+require "dicoms/shared_settings"
+require "dicoms/progress"
+require "dicoms/command_options"
+require "dicoms/sequence"
+require "dicoms/transfer"
+require "dicoms/extract"
+require "dicoms/pack"
+require "dicoms/unpack"
+require "dicoms/stats"
+require "dicoms/projection"
+require "dicoms/remap"
 
 # TODO: require known SOP Class: 1.2.840.10008.5.1.4.1.1.2
 # (in tag 0002,0002, Media Storage SOP Class UID)
@@ -56,7 +56,7 @@ require "dicompack/remap"
 #   0002,0003     Media Storage SOP Instance UID
 #   0008,0018     SOP Instance UID
 
-class DicomPack
+class DicomS
 
   def initialize(options = {})
     @settings = Settings[options]

@@ -1,6 +1,6 @@
 require 'test_helper'
 
-describe DicomPack do
+describe DicomS do
 
   strategies = [
     [ [:first, ignore_min: false], 'first'],
@@ -38,8 +38,8 @@ describe DicomPack do
     strategies.each do |strategy, desc|
       it "works for strategy #{desc}" do
         settings = {}
-        dicompack = DicomPack.new(settings)
-        dicompack.extract(
+        dicoms = DicomS.new(settings)
+        dicoms.extract(
           @dicom_dir,
           transfer: strategy,
           output: @img_dir
@@ -48,10 +48,10 @@ describe DicomPack do
         num_imgs = img_files.size
         assert num_imgs > 0
         total_size = img_files.map { |f| File.size(f) }.inject(&:+)
-        dicom_size = dicompack.find_dicom_files(@dicom_dir).map { |f| File.size(f) }.inject(&:+)
+        dicom_size = dicoms.find_dicom_files(@dicom_dir).map { |f| File.size(f) }.inject(&:+)
 
-        dicompack = DicomPack.new(settings)
-        dicompack.pack(
+        dicoms = DicomS.new(settings)
+        dicoms.pack(
           @dicom_dir,
           transfer: strategy,
           output: @pack_name, tmp: @tmp_dir
@@ -63,7 +63,7 @@ describe DicomPack do
         end
         assert File.size(@pack_file) < dicom_size/5, "File size is reduced"
 
-        dicompack.unpack(
+        dicoms.unpack(
           @pack_file,
           output: @out_dir
         )

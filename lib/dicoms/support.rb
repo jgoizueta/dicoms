@@ -1,6 +1,6 @@
 require 'matrix'
 
-class DicomPack
+class DicomS
   USE_SLICE_Z = false
   METADATA_TYPES = {
     dx: :to_f, dy: :to_f, dz: :to_f,

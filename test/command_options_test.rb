@@ -13,7 +13,7 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_options_without_settings_file
-    options = DicomPack::CommandOptions.new(
+    options = DicomS::CommandOptions.new(
       a: 11,
       b: 22,
       c: 33,
@@ -34,7 +34,7 @@ class ShareFileTest < Minitest::Test
   end
 
   def test_options_with_settings_file
-    settings = DicomPack::SharedSettings.new(@settings_file)
+    settings = DicomS::SharedSettings.new(@settings_file)
     settings.write(
       a: 11,
       b: 22,
@@ -42,7 +42,7 @@ class ShareFileTest < Minitest::Test
       path: 'abc',
       path2: 'xyz/uvw'
     )
-    options = DicomPack::CommandOptions.new(
+    options = DicomS::CommandOptions.new(
       settings: @settings_file
     )
     assert_equal 11, options[:a]

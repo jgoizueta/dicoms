@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   # extract the images of a set of DICOM files
   def extract(dicom_directory, options = {})
     options = CommandOptions.new(options)

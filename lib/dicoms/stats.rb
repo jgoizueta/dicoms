@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   def stats(dicom_directory, options = {})
     # TODO: compute histogram of levels
     dicom_files = find_dicom_files(dicom_directory)

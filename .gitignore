@@ -1,6 +1,6 @@
-dicompack_out
-dicompack_in
-dicompack_tmp
+dspack_out
+dspack_in
+dspack_tmp
 *.mkv
 /tmp/
 /.bundle/

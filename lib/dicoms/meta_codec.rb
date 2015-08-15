@@ -15,7 +15,7 @@
 #   `ffmpeg -i #{output_file}  -f ffmetadata #{meta_file}`
 #   dicom_elements, additional_values = meta_codec.read_metadata(meta_file)
 #
-class DicomPack::MetaCodec
+class DicomS::MetaCodec
 
   # Two encoding modes:
   # * :chunked : use few metadata entries (dicom_0)

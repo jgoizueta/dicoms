@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   def pack(dicom_directory, options = {})
     # TODO: keep more metadata to restore the exact strategy+min,max and so
     # be able to restore original DICOM values (and rescaling/window metadata)
@@ -13,7 +13,7 @@ class DicomPack
     sequence = Sequence.new(dicom_directory, transfer: strategy, roi: options[:roi])
 
     output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
-    pack_dir = options.path_option(:tmp, 'dicompack_tmp') # TODO: better default
+    pack_dir = options.path_option(:tmp, 'dspack_tmp') # TODO: better default
     FileUtils.mkdir_p pack_dir
 
     name_pattern = start_number = prefix = nil

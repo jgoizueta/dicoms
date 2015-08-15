@@ -1,3 +1,3 @@
-class DicomPack
+class DicomS
   VERSION = "0.1.0"
 end

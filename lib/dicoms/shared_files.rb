@@ -1,7 +1,7 @@
 require 'yaml'
 require 'json'
 
-class DicomPack
+class DicomS
 
   # Shared files can be concurrently accessed by diferent processes.
   # They should never be large files, and update operations (reading,

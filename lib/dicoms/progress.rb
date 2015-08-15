@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   class Progress
     def initialize(description, options={})
       filename = options[:progress]

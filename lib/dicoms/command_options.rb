@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   class CommandOptions < Settings
     def initialize(options)
       @base_dir = nil

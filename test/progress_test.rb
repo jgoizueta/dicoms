@@ -5,7 +5,7 @@ class ProgressTest < Minitest::Test
     @data_dir  = File.join('test', 'data')
     @progress_file_name = File.join(@data_dir, 'progress.json')
     FileUtils.rm @progress_file_name if File.exists?(@progress_file_name)
-    @progress_file = DicomPack::SharedSettings.new(@progress_file_name)
+    @progress_file = DicomS::SharedSettings.new(@progress_file_name)
   end
 
   def teardown
@@ -15,7 +15,7 @@ class ProgressTest < Minitest::Test
 
   def test_start
     refute File.exists?(@progress_file_name) # sanity check
-    progress = DicomPack::Progress.new('Test process', progress: @progress_file_name)
+    progress = DicomS::Progress.new('Test process', progress: @progress_file_name)
     assert File.file?(@progress_file_name)
     data = @progress_file.read
     assert_equal 0, progress.progress
@@ -25,7 +25,7 @@ class ProgressTest < Minitest::Test
   end
 
   def test_progress
-    progress = DicomPack::Progress.new('Test process', progress: @progress_file_name)
+    progress = DicomS::Progress.new('Test process', progress: @progress_file_name)
     refute progress.finished?
     progress.update 10
     refute progress.finished?
@@ -58,7 +58,7 @@ class ProgressTest < Minitest::Test
   end
 
   def test_subprocess
-    progress = DicomPack::Progress.new('Test process', progress: @progress_file_name)
+    progress = DicomS::Progress.new('Test process', progress: @progress_file_name)
     progress.update 10
     progress.begin_subprocess 'Test subprocess', 60, 4
     refute progress.finished?
@@ -105,7 +105,7 @@ class ProgressTest < Minitest::Test
   end
 
   def test_no_progress
-    progress = DicomPack::Progress.new('Test process')
+    progress = DicomS::Progress.new('Test process')
     refute File.exists?(@progress_file_name)
     refute progress.finished?
     progress.update 10
@@ -127,7 +127,7 @@ class ProgressTest < Minitest::Test
   end
 
   def test_no_progress_with_subprocesses
-    progress = DicomPack::Progress.new('Test process')
+    progress = DicomS::Progress.new('Test process')
     refute File.exists?(@progress_file_name)
     progress.update 10
     refute File.exists?(@progress_file_name)

@@ -1,5 +1,4 @@
-class DicomPack
-
+class DicomS
   # Base class for Transfer strategy classes that define how
   # the values of DICOM pixels are scales to be used as image pixels
   # or to be processed as data (generic presentation values).

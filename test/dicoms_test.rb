@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class DicomPackTest < Minitest::Test
+class DicomSTest < Minitest::Test
 
   def setup
     @data_dir  = File.join('test', 'data')
@@ -24,7 +24,7 @@ class DicomPackTest < Minitest::Test
   end
 
   def test_that_it_has_a_version_number
-    refute_nil ::DicomPack::VERSION
+    refute_nil ::DicomS::VERSION
   end
 
   def test_dicom_file_list
@@ -33,24 +33,24 @@ class DicomPackTest < Minitest::Test
       return
     end
     settings = {}
-    dicompack = DicomPack.new(settings)
-    all_files = dicompack.find_dicom_files(@dicom_dir)
+    dicoms = DicomS.new(settings)
+    all_files = dicoms.find_dicom_files(@dicom_dir)
     assert_equal Dir[File.join(@dicom_dir, '*')].size,
                  all_files.size
     a_file = all_files.first
     if a_file
-      one_file = dicompack.find_dicom_files(a_file)
+      one_file = dicoms.find_dicom_files(a_file)
       assert_equal [a_file], one_file
     end
-    no_files = dicompack.find_dicom_files(@empty_dir)
+    no_files = dicoms.find_dicom_files(@empty_dir)
     assert no_files.empty?
 
     # Non-dicom files are ignored
     no_dicom = File.join(@dicom_dir, 'non_dicom.dcm')
     File.write no_dicom, 'NOT A DICOM FILE'
     begin
-      assert_equal all_files, dicompack.find_dicom_files(@dicom_dir)
-      assert dicompack.find_dicom_files(no_dicom).empty?
+      assert_equal all_files, dicoms.find_dicom_files(@dicom_dir)
+      assert dicoms.find_dicom_files(no_dicom).empty?
     ensure
       FileUtils.rm no_dicom
     end
@@ -58,12 +58,12 @@ class DicomPackTest < Minitest::Test
     no_dicom = File.join(@empty_dir, 'non_dicom.dcm')
     File.write no_dicom, 'NOT A DICOM FILE'
     begin
-      assert dicompack.find_dicom_files(@empty_dir).empty?
+      assert dicoms.find_dicom_files(@empty_dir).empty?
     ensure
       FileUtils.rm no_dicom
     end
 
     non_existent = File.join(@empty_dir, 'no_file.dcm')
-    assert dicompack.find_dicom_files(non_existent).empty?
+    assert dicoms.find_dicom_files(non_existent).empty?
   end
 end

@@ -1,6 +1,6 @@
 require 'matrix'
 
-class DicomPack
+class DicomS
   # Sequence of DICOM CT/MRI slices
   # Metadata about the sequence including the orientation of RCS
   # (patient coordinate system) in relation to the DICOM sequence
@@ -185,6 +185,11 @@ class DicomPack
             lim_min, lim_max = Transfer.min_max_limits(dicom)
           end
         end
+        # TODO: keep 0020,0013     Instance Number
+        # of each visited file;
+        # After having visited all files, if all had 0020,0013
+        # and it's unique we could reorder the sequence
+        # by this number...
       }
 
       metadata = Settings[]

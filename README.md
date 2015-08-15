@@ -1,13 +1,17 @@
-# DicomPack
+# DicomS: DICOM Series toolkit
 
-DICOM sequence packer.
+DicomS is a Ruby toolkit for working with DICOM (CT/MRI) Series (image sequences that compose a volume).
+
+It can be used through a command line interface
+by using the `dicoms` executable script, or
+from a Ruby program through the 'DicomS' class interface (API).
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'dicompack'
+gem 'dicoms'
 ```
 
 And then execute:
@@ -16,7 +20,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install dicompack
+    $ gem install dicoms
 
 ### Requirements
 

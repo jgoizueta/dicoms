@@ -1,6 +1,6 @@
 require 'thor'
 
-class DicomPack
+class DicomS
   class CLI < Thor
     check_unknown_options!
 
@@ -8,10 +8,10 @@ class DicomPack
       true
     end
 
-    desc 'version', "Display dicompack version"
+    desc 'version', "Display DicomS version"
     map %w(-v --version) => :version
     def version
-      say "dicompack #{VERSION}"
+      say "dicoms #{VERSION}"
     end
 
     class_option 'verbose', type: :boolean, default: false
@@ -34,10 +34,10 @@ class DicomPack
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      packer = DicomPack.new(settings)
+      packer = DicomS.new(settings)
       packer.pack(
         dicom_dir,
-        transfer: DicomPack.transfer_options(options),
+        transfer: DicomS.transfer_options(options),
         output: options.output,
         tmp:  options.tmp
       )
@@ -45,17 +45,17 @@ class DicomPack
       0
     end
 
-    desc "unpack DICOMPACK", "unpack a dicompack file"
+    desc "unpack dspack", "unpack a dspack file"
     option :output,   desc: 'output directory', aliases: '-o'
-    def unpack(dicompack)
+    def unpack(dspack)
       DICOM.logger.level = Logger::FATAL
-      unless File.file?(dicompack)
-        raise Error, set_color("File not found: #{dicompack}", :red)
+      unless File.file?(dspack)
+        raise Error, set_color("File not found: #{dspack}", :red)
         say options
       end
       settings = {} # TODO: ...
-      packer = DicomPack.new(settings)
-      packer.unpack dicompack
+      packer = DicomS.new(settings)
+      packer.unpack dspack
       # rescue => raise Error?
       0
     end
@@ -74,10 +74,10 @@ class DicomPack
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      packer = DicomPack.new(settings)
+      packer = DicomS.new(settings)
       packer.extract(
         dicom_dir,
-        transfer: DicomPack.transfer_options(options),
+        transfer: DicomS.transfer_options(options),
         output: options.output
       )
       # rescue => raise Error?
@@ -88,8 +88,8 @@ class DicomPack
     def stats(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
-      dicompack = DicomPack.new(settings)
-      stats = dicompack.stats dicom_dir
+      dicoms = DicomS.new(settings)
+      stats = dicoms.stats dicom_dir
       puts "Aggregate values for #{stats[:n]} DICOM files:"
       puts "  Minimum level: #{stats[:min]}"
       puts "  Next minimum level: #{stats[:next_min]}"
@@ -118,10 +118,10 @@ class DicomPack
       unless options.axial || options.sagittal || options.coronal
         raise Error, "Must specify at least one projection (axial/sagittal/coronal)"
       end
-      packer = DicomPack.new(settings)
+      packer = DicomS.new(settings)
       packer.projection(
         dicom_dir,
-        transfer: DicomPack.transfer_options(options),
+        transfer: DicomS.transfer_options(options),
         output: options.output,
         axial: options.axial == 'axial' ? 'mip' : options.axial,
         sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
@@ -147,10 +147,10 @@ class DicomPack
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      packer = DicomPack.new(settings)
+      packer = DicomS.new(settings)
       packer.remap(
         dicom_dir,
-        transfer: DicomPack.transfer_options(options),
+        transfer: DicomS.transfer_options(options),
         output: options.output
       )
       # rescue => raise Error?

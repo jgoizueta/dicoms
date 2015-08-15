@@ -1,4 +1,4 @@
-class DicomPack
+class DicomS
   def unpack(pack_file, options = {})
     options = CommandOptions.new(options)
 

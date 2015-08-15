@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+
+require 'dicoms'
+require 'dicoms/cli'
+
+DicomS::CLI.start ARGV

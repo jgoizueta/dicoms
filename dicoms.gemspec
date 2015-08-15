@@ -1,16 +1,16 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'dicompack/version'
+require 'dicoms/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = "dicompack"
-  spec.version       = DicomPack::VERSION
+  spec.name          = "dicoms"
+  spec.version       = DicomS::VERSION
   spec.authors       = ["Javier Goizueta"]
   spec.email         = ["jgoizueta@gmail.com"]
 
-  spec.summary       = %q{DICOM sequence packer}
-  spec.description   = %q{Pack DICOM image sequences into a compact file}
+  spec.summary       = %q{DICOM Series toolkit}
+  spec.description   = %q{Toolkit for working with DICOM image sequences}
   spec.homepage      = "https://gitlab.com/jgoizueta/dicompacker"
 
   # Prevent pushing this gem to RubyGems.org by setting 'allowed_push_host', or
