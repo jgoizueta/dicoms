@@ -66,4 +66,27 @@ class DicomSTest < Minitest::Test
     non_existent = File.join(@empty_dir, 'no_file.dcm')
     assert dicoms.find_dicom_files(non_existent).empty?
   end
+
+  def test_dicom_series
+    unless File.directory?(@dicom_dir)
+      skip
+      return
+    end
+    sequence = DicomS::Sequence.new(@dicom_dir)
+    refute sequence.metadata.study_id.nil?
+    refute sequence.metadata.series_id.nil?
+    assert sequence.check_series
+  end
+
+  def test_dicom_series_with_strategy
+    unless File.directory?(@dicom_dir)
+      skip
+      return
+    end
+    strategy = DicomS::Transfer.strategy(:sample)
+    sequence = DicomS::Sequence.new(@dicom_dir, transfer: strategy)
+    refute sequence.metadata.study_id.nil?
+    refute sequence.metadata.series_id.nil?
+    assert sequence.check_series
+  end
 end

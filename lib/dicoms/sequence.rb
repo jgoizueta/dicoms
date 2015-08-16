@@ -61,6 +61,7 @@ class DicomS
         raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
       end
       @visitors = Array(options[:visit])
+      @visited = Array.new(@files.size)
       @metadata = nil
       @strategy = options[:transfer]
       compute_metadata!
@@ -84,7 +85,7 @@ class DicomS
       # TODO: support caching strategies for reading as DICOM objects:
       #       no-caching, max-size cache, ...
       dicom = DICOM::DObject.read(@files[i])
-      send dicom, i, *@visitors
+      visit dicom, i, *@visitors
       dicom
     end
 
@@ -99,7 +100,7 @@ class DicomS
     def each(&blk)
       (0...@files.size).each do |i|
         dicom = dicom(i)
-        send dicom, i, blk
+        visit dicom, i, blk
       end
     end
 
@@ -151,9 +152,23 @@ class DicomS
       pixels
     end
 
+    # Check if the images belong to a single series
+    def check_series
+      visit_all
+      @visited.reject { |name, study, series, instance| study == @metadata.study_id && series == @metadata.series_id }.empty?
+    end
+
+    def reorder!
+      visit_all
+      @visited.sort_by! { |name, study, series, instance| [study, series, instance] }
+      @files = @visited.map { |name, study, series, instance| name }
+    end
+
     private
 
     def compute_metadata!
+      return unless @metadata.nil?
+
       # TODO: with stored metadata option, if metadata exist in dicom dir, use it
       # and store it first time it is computed
 
@@ -161,35 +176,39 @@ class DicomS
       last_i = nil
       first_md = last_md = nil
       lim_min = lim_max = nil
+      study_id = series_id = nil
 
-      @visitors.push -> (dicom, i) {
-        if !first_i || first_i > i
-          first_i = i
-          first_md = single_dicom_metadata(dicom)
-        elsif !last_i || last_i < i
-          last_i = i
-          last_md = single_dicom_metadata(dicom)
-        end
-        unless last_i
-          last_i = first_i
-          last_md = first_md
-        end
-        unless first_i
-          first_i = last_i
-          first_md = first_md
-        end
-        unless lim_min
-          if @strategy
-            lim_min, lim_max = @strategy.min_max_limits(dicom)
-          else
-            lim_min, lim_max = Transfer.min_max_limits(dicom)
+      @visitors.push -> (dicom, i, filename) {
+        unless @visited[i]
+          if !first_i || first_i > i
+            first_i = i
+            first_md = single_dicom_metadata(dicom)
+          elsif !last_i || last_i < i
+            last_i = i
+            last_md = single_dicom_metadata(dicom)
           end
+          unless last_i
+            last_i = first_i
+            last_md = first_md
+          end
+          unless first_i
+            first_i = last_i
+            first_md = first_md
+          end
+          unless lim_min
+            if @strategy
+              lim_min, lim_max = @strategy.min_max_limits(dicom)
+            else
+              lim_min, lim_max = Transfer.min_max_limits(dicom)
+            end
+          end
+          slice_study_id  = dicom.study_id.value # 0020,0010 SH (short string)
+          slice_series_id = dicom.series_number.value.to_i # 0020,0011 IS (integer string)
+          slice_image_id  = dicom.instance_number.value.to_i # 0020,0013 IS (integer string)
+          study_id  ||= slice_study_id
+          series_id ||= slice_series_id
+          @visited[i] = [filename, slice_study_id, slice_series_id, slice_image_id]
         end
-        # TODO: keep 0020,0013     Instance Number
-        # of each visited file;
-        # After having visited all files, if all had 0020,0013
-        # and it's unique we could reorder the sequence
-        # by this number...
       }
 
       metadata = Settings[]
@@ -224,10 +243,9 @@ class DicomS
         # TODO: change metadata :x, :y, :z by max-min ranges or remove
       end
 
+      metadata.merge! study_id: study_id, series_id: series_id
       metadata.lim_min = lim_min
       metadata.lim_max = lim_max
-
-      @visitors.pop
 
       total_n = size
 
@@ -251,7 +269,13 @@ class DicomS
       @metadata = metadata
     end
 
-    def send(dicom, i, *visitors)
+    def visit_all
+      @visited.each_with_index do |data, i|
+        dicom(i) unless data
+      end
+    end
+
+    def visit(dicom, i, *visitors)
       if dicom
         visitors.each do |visitor|
           if visitor
