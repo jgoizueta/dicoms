@@ -35,6 +35,7 @@ class DicomS
       if strategy.is_a?(Array) && options.empty?
         strategy, options = strategy
       end
+      return nil if strategy.nil?
       case strategy.to_sym
       when :fixed
         strategy_class = FixedTransfer
