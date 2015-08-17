@@ -65,7 +65,7 @@ class DicomS
       non_numeric = []
       numeric_files = []
       files.each do |name|
-        match = /\d+/.match(name)
+        match = /\d+/.match(File.basename(name))
         if match
           numeric_files << [match[0], name]
         else
@@ -148,7 +148,7 @@ class DicomS
       defautl_strategy ||= :sample
       default_params = defaults.shift || {}
       raise "Invalid number of parametrs" unless defaults.empty?
-      Transfer.strategy strategy || default_strategy, default_params.merge(params || {})
+      Transfer.strategy strategy || default_strategy, default_params.merge((params || {}).to_h)
     end
   end
 end
