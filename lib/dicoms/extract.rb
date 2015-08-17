@@ -1,7 +1,7 @@
 class DicomS
   # extract the images of a set of DICOM files
   def extract(dicom_directory, options = {})
-    options = CommandOptions.new(options)
+    options = CommandOptions[options]
 
     progress = Progress.new('extracting', options)
     progress.begin_subprocess 'reading_metadata', 2
@@ -10,7 +10,9 @@ class DicomS
     sequence = Sequence.new(dicom_directory, transfer: strategy)
 
     progress.begin_subprocess 'extracting_images', 100, sequence.size
-    extract_dir = options.path_option(:output, File.join(dicom_directory, 'images'))
+    extract_dir = options.path_option(
+      :output, File.join(File.expand_path(dicom_directory), 'images')
+    )
     FileUtils.mkdir_p FileUtils.mkdir_p extract_dir
     prefix = nil
     min, max = sequence.metadata.min, sequence.metadata.max

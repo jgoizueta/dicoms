@@ -15,6 +15,7 @@ class DicomS
     end
 
     class_option 'verbose', type: :boolean, default: false
+    class_option 'settings', type: :string, desc: 'settings file'
 
     desc "pack DICOM-DIR", "pack a DICOM directory"
     option :output,   desc: 'output file', aliases: '-o'
@@ -24,6 +25,8 @@ class DicomS
     option :width,      desc: 'window (window transfer)', aliases: '-w'
     option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    option :min,   desc: 'minimum value (fixed transfer)'
+    option :max,   desc: 'maximum value (fixed transfer)'
     def pack(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       strategy_parameters = {
@@ -67,6 +70,8 @@ class DicomS
     option :width,      desc: 'window (window transfer)', aliases: '-w'
     option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    option :min,   desc: 'minimum value (fixed transfer)'
+    option :max,   desc: 'maximum value (fixed transfer)'
     def extract(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -108,6 +113,8 @@ class DicomS
     option :width,      desc: 'window (window transfer)', aliases: '-w'
     option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    option :min,   desc: 'minimum value (fixed transfer)'
+    option :max,   desc: 'maximum value (fixed transfer)'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -115,18 +122,25 @@ class DicomS
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      unless options.axial || options.sagittal || options.coronal
+      if options.settings
+        cmd_options = CommandOptions[
+          settings: options.settings,
+          output: options.output
+        ]
+      else
+        cmd_options = CommandOptions[
+          transfer: DicomS.transfer_options(options),
+          output: options.output,
+          axial: options.axial == 'axial' ? 'mip' : options.axial,
+          sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
+          coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
+        ]
+      end
+      unless cmd_options.axial || options.sagittal || options.coronal
         raise Error, "Must specify at least one projection (axial/sagittal/coronal)"
       end
       packer = DicomS.new(settings)
-      packer.projection(
-        dicom_dir,
-        transfer: DicomS.transfer_options(options),
-        output: options.output,
-        axial: options.axial == 'axial' ? 'mip' : options.axial,
-        sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
-        coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
-      )
+      packer.projection(dicom_dir, cmd_options)
       # rescue => raise Error?
       0
     end
@@ -140,6 +154,8 @@ class DicomS
     option :width,      desc: 'window (window transfer)', aliases: '-w'
     option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    option :min,   desc: 'minimum value (fixed transfer)'
+    option :max,   desc: 'maximum value (fixed transfer)'
     def remap(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -172,6 +188,8 @@ class DicomS
         params[:ignore_min] = false
       end
       params[:max_files] = options.samples if options.samples
+      params[:min] = options[:min].to_f if options.min
+      params[:max] = options[:max].to_f if options.max
       if params.empty?
         strategy
       else

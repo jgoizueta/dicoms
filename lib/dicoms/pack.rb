@@ -4,7 +4,7 @@ class DicomS
     # be able to restore original DICOM values (and rescaling/window metadata)
     # bit depth, signed/unsigned, rescale, window, data values corresponding
     # to minimum (black) and maximum (white)
-    options = CommandOptions.new(options)
+    options = CommandOptions[options]
 
     progress = Progress.new('packing', options)
     progress.begin_subprocess 'reading_metadata', 2

@@ -7,7 +7,7 @@ class DicomS
 
   # extract projected images of a set of DICOM files
   def projection(dicom_directory, options = {})
-    options = CommandOptions.new(options)
+    options = CommandOptions[options]
 
     progress = Progress.new('generating_projections', options)
     progress.begin_subprocess 'reading_metadata', 1
@@ -16,7 +16,9 @@ class DicomS
     strategy = define_transfer(options, :window, output: :byte)
     sequence = Sequence.new(dicom_directory, transfer: strategy)
 
-    extract_dir = options.path_option(:output, File.join(dicom_directory, 'images'))
+    extract_dir = options.path_option(
+      :output, File.join(File.expand_path(dicom_directory), 'images')
+    )
     FileUtils.mkdir_p extract_dir
 
     if sequence.metadata.lim_max <= 255
@@ -167,7 +169,7 @@ class DicomS
     i = 0
 
     float_v = nil
-    if options.values_at(:axial, :coronal, :sagittal).include?('aap')
+    if options.to_h.values_at(:axial, :coronal, :sagittal).include?('aap')
       # It's gonna take memory... (a whole lot of precious memory)
       float_v ||= volume.to_type(NArray::SFLOAT)
       # To enhance result contrast we will apply a gamma of x**4
