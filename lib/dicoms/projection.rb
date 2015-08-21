@@ -227,6 +227,7 @@ class DicomS
       progress.update_subprocess i
     end
     float_v = nil
+    options.save_settings sequence.metadata
     progress.finish
   end
 

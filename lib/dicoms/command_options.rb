@@ -2,7 +2,12 @@ class DicomS
   class CommandOptions < Settings
     def initialize(options)
       @base_dir = nil
-      if settings_file = options.delete(:settings)
+      if settings_file = options.delete(:settings_io)
+        @settings_io = SharedSettings.new(settings_file)
+      else
+        settings_file = options.delete(:settings)
+      end
+      if settings_file
         settings = SharedSettings.new(settings_file).read
         options = settings.merge(options.to_h.reject{ |k, v| v.nil? })
         @base_dir = File.dirname(settings_file)
@@ -22,6 +27,14 @@ class DicomS
 
     def self.[](options)
       options.is_a?(CommandOptions) ? options : CommandOptions.new(options)
+    end
+
+    def save_settings(data)
+      if @settings_io
+        @settings_io.update do |settings|
+          settings.merge data
+        end
+      end
     end
   end
 end

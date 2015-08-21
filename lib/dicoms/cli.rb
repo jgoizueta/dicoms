@@ -15,7 +15,8 @@ class DicomS
     end
 
     class_option 'verbose', type: :boolean, default: false
-    class_option 'settings', type: :string, desc: 'settings file'
+    class_option 'settings', type: :string, desc: 'settings (read-only) file'
+    class_option 'settings_io', type: :string, desc: 'settings file'
 
     desc "pack DICOM-DIR", "pack a DICOM directory"
     option :output,   desc: 'output file', aliases: '-o'
@@ -122,9 +123,10 @@ class DicomS
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      if options.settings
+      if options.settings_io || options.settings
         cmd_options = CommandOptions[
           settings: options.settings,
+          settings_io: options.settings_io,
           output: options.output
         ]
       else
