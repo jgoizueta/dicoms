@@ -11,8 +11,8 @@ class DicomS
   module Support
     # Code that use images should be wrapped with this.
     #
-    # Reason: if RMagick is used by DICOM to handle images
-    # the first time it is needed, 'rmagick' will be required.
+    # Reason: if RMagick is used by DICOM to handle images,
+    # then the first time it is needed, 'rmagick' will be required.
     # This has the effect of placing the path of ImageMagick
     # in front of the PATH.
     # On Windows, ImageMagick includes FFMPeg in its path and we
