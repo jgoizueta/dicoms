@@ -20,14 +20,16 @@ class DicomS
 
     progress.begin_subprocess 'extracting_images', 60, sequence.size
     image_files = []
-    sequence.each do |d, i, file|
-      unless name_pattern
-        prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
+    keeping_path do
+      sequence.each do |d, i, file|
+        unless name_pattern
+          prefix, name_pattern, start_number = dicom_name_pattern(file, pack_dir)
+        end
+        output_image = output_file_name(pack_dir, prefix, file)
+        image_files << output_image
+        sequence.save_jpg d, output_image
+        progress.update_subprocess i
       end
-      output_image = output_file_name(pack_dir, prefix, file)
-      image_files << output_image
-      sequence.save_jpg d, output_image
-      progress.update_subprocess i
     end
     if options[:dicom_metadata]
       metadata_file = File.join(pack_fir, 'ffmetadata')
