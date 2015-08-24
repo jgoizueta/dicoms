@@ -206,7 +206,7 @@ class DicomS
 
     def dicom_stored_bits(dicom)
       # dicom.bits_stored.value.to_i
-      dicom.first_value dicom, '0028,0101', convert: :to_i
+      dicom_element_value dicom, '0028,0101', convert: :to_i
     end
 
     def dicom_narray(dicom, options = {})
