@@ -85,6 +85,13 @@ class DicomS
       # TODO: support caching strategies for reading as DICOM objects:
       #       no-caching, max-size cache, ...
       dicom = DICOM::DObject.read(@files[i])
+      sop_class = dicom['0002,0002'].value
+      unless sop_class == '1.2.840.10008.5.1.4.1.1.2'
+        raise "Unsopported SOP Class #{sop_class}"
+      end
+      # TODO: require known SOP Class:
+      # (in tag 0002,0002, Media Storage SOP Class UID)
+
       visit dicom, i, *@visitors
       dicom
     end
