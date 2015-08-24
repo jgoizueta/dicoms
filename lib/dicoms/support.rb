@@ -227,7 +227,6 @@ class DicomS
             na.mul! (1 << (stored_bits - Magick::MAGICKCORE_QUANTUM_DEPTH))
           end
         end
-        min, max = pixel_value_range(bits, signed)
         if remap = options[:remap] || level = options[:level]
           intercept = dicom_rescale_intercept(dicom)
           slope     = dicom_rescale_slope(dicom)
@@ -249,6 +248,19 @@ class DicomS
               na[na > high] = high
             end
           end
+
+          # Now we limit the output values range.
+          # Note that we don't use:
+          #   min, max = pixel_value_range(bits, signed)
+          # because thats the limits for the stored values, but not for
+          # the representation values we're computing here (which are
+          # typically signed even if the storage is unsigned)
+          # We coud use this, but that would have to be
+          #   min, max = pixel_value_range(stored_bits, false)
+          #   min = -max
+          # but that requires some reviewing.
+          # Maybe this shold be parameterized.
+          min, max = -65535, 65535
           min_pixel_value = na.min
           if min
             if min_pixel_value < min
@@ -264,6 +276,7 @@ class DicomS
             end
           end
         end
+        
         na
       else
         dicom.narray options
