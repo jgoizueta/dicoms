@@ -14,7 +14,7 @@ class DicomS
     dicom_files.each do |file|
       n += 1
       d = DICOM::DObject.read(file)
-      data = d.narray
+      data = dicom_narray(d)
       min = data.min
       mins << min
       maxs << data.max

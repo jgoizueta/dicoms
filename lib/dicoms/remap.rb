@@ -36,7 +36,7 @@ class DicomS
       end
       dicom.window_center = (lim_max + lim_min) / 2
       dicom.window_width = (lim_max - lim_min)
-      dicom.pixels = data
+      assign_dicom_pixels dicom, data
       output_file = File.join(output_dir, File.basename(file))
       dicom.write output_file
       progress.update_subprocess i

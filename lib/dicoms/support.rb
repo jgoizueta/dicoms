@@ -131,14 +131,6 @@ class DicomS
       [prefix, pattern, number]
     end
 
-    def dicom_slope_intercept(dicom)
-      intercept_element = dicom['0028,1052']
-      intercept = intercept_element ? intercept_element.value.to_i : 0
-      slope_element = dicom['0028,1053']
-      slope = slope_element ? slope_element.value.to_i : 1
-      [slope, intercept]
-    end
-
     def define_transfer(options, *defaults)
       strategy, params = Array(options[:transfer])
 
@@ -149,6 +141,145 @@ class DicomS
       default_params = defaults.shift || {}
       raise "Invalid number of parametrs" unless defaults.empty?
       Transfer.strategy strategy || default_strategy, default_params.merge((params || {}).to_h)
+    end
+
+    def pixel_value_range(num_bits, signed)
+      num_values = (1 << num_bits) # 2**num_bits
+      if signed
+        [-num_values/2, num_values/2-1]
+      else
+        [0, num_values-1]
+      end
+    end
+
+    def dicom_element_value(dicom, tag, options = {})
+      if dicom.exists?(tag)
+        value = dicom[tag].value
+        if options[:first]
+          if value.is_a?(String)
+            value = value.split('\\').first
+          elsif value.is_a?(Array)
+            value = value.first
+          end
+        end
+        value = value.send(options[:convert]) if options[:convert]
+        value
+      else
+        options[:default]
+      end
+    end
+
+    # WL (window level)
+    def dicom_window_center(dicom)
+      # dicom.window_center.value.to_i
+      dicom_element_value(dicom, '0028,1050', convert: :to_f, first: true)
+    end
+
+    # WW (window width)
+    def dicom_window_width(dicom)
+      # dicom.window_center.value.to_i
+      dicom_element_value(dicom, '0028,1051', convert: :to_f, first: true)
+    end
+
+    def dicom_rescale_intercept(dicom)
+      dicom_element_value(dicom, '0028,1052', convert: :to_f, default: 0)
+    end
+
+    def dicom_rescale_slope(dicom)
+      dicom_element_value(dicom, '0028,1053', convert: :to_f, default: 1)
+    end
+
+    def dicom_bit_depth(dicom)
+      # dicom.send(:bit_depth)
+      dicom_element_value dicom, '0028,0100', convert: :to_i
+    end
+
+    def dicom_signed?(dicom)
+      # dicom.send(:signed_pixels?)
+      case dicom_element_value(dicom, '0028,0103', convert: :to_i)
+      when 1
+        true
+      when 0
+        false
+      end
+    end
+
+    def dicom_stored_bits(dicom)
+      # dicom.bits_stored.value.to_i
+      dicom.first_value dicom, '0028,0101', convert: :to_i
+    end
+
+    def dicom_narray(dicom, options = {})
+      if dicom.compression?
+        img = dicom.image
+        pixels = dicom.export_pixels(img, dicom.send(:photometry))
+        na = NArray.to_na(pixels).reshape!(dicom.num_cols, dicom.num_rows)
+        bits = dicom_bit_depth(dicom)
+        signed = dicom_signed?(dicom)
+        stored_bits = dicom_stored_bits(dicom)
+        if stored_bits != Magick::MAGICKCORE_QUANTUM_DEPTH
+          use_float = stored_bits < Magick::MAGICKCORE_QUANTUM_DEPTH
+          if use_float
+            na = na.to_type(NArray::SFLOAT)
+            na.mul! 2.0**(stored_bits - Magick::MAGICKCORE_QUANTUM_DEPTH)
+            na = na.to_type(NArray::INT)
+          else
+            na.mul! (1 << (stored_bits - Magick::MAGIsCKCORE_QUANTUM_DEPTH))
+          end
+        end
+        min, max = pixel_value_range(bits, signed)
+        if remap = options[:remap] || level = options[:level]
+          intercept = dicom_rescale_intercept(dicom)
+          slope     = dicom_rescale_slope(dicom)
+          if intercept != 0 || slope != 1
+            na.mul! slope
+            na.add! intercept
+          end
+          if level
+            if level.is_a?(Array)
+              center, width = level
+            else
+              center = dicom_window_center(dicom)
+              width  = dicom_window_width(dicom)
+            end
+            if center && width
+              low = center - width/2
+              high = center + width/2
+              na[na < low] = low
+              na[na > high] = high
+            end
+          end
+          min_pixel_value = na.min
+          if min
+            if min_pixel_value < min
+              offset = min_pixel_value.abs
+              na.add! offset
+            end
+          end
+          max_pixel_value = na.max
+          if max
+            if max_pixel_value > max
+              factor = (max_pixel_value.to_f/max.to_f).ceil
+              na.div! factor
+            end
+          end
+        end
+        na
+      else
+        dicom.narray options
+      end
+    end
+
+    def assign_dicom_pixels(dicom, pixels)
+      if dicom.compression?
+        dicom.delete DICOM::PIXEL_TAG
+      end
+      dicom.pixels = pixels
+    end
+
+    def dicom_compression(dicom)
+      ts = DICOM::LIBRARY.uid(dicom.transfer_syntax)
+      ts.name if ts.compressed_pixels?
     end
   end
 end

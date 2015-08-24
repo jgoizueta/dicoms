@@ -140,7 +140,7 @@ class DicomS
       if @strategy
         pixels = @strategy.pixels(dicom, metadata.min, metadata.max)
       else
-        pixels = dicom.narray(level: false, remap: true)
+        pixels = dicom_narray(dicom, level: false, remap: true)
       end
       if @image_cropping
         firstx, lastx, firsty, lasty = @image_cropping

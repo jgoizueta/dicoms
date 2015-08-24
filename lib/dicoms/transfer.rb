@@ -16,13 +16,16 @@ class DicomS
   class Transfer
     USE_DATA = false
 
+    include Support
+    extend  Support
+
     def initialize(options = {})
       @output = options[:output]
     end
 
     # Remapped DICOM pixel values as an Image
     def image(dicom, min, max)
-      dicom.pixels = pixels(dicom, min, max)
+      assign_dicom_pixels dicom, pixels(dicom, min, max)
       dicom.image
     end
 
@@ -72,18 +75,9 @@ class DicomS
     end
 
     def self.min_max_limits(dicom)
-      signed = dicom.send(:signed_pixels?)
-      if dicom.bits_stored.value.to_i == 16
-        if signed
-          [-32768, 32767]
-        else
-          [0, 65535]
-        end
-      elsif signed
-        [-128, 127]
-      else
-        [0, 255]
-      end
+      num_bits = dicom_bit_depth(dicom)
+      signed = dicom_signed?(dicom)
+      pixel_value_range(num_bits, signed)
     end
 
     FLOAT_MAPPING = true
@@ -109,7 +103,7 @@ class DicomS
     def processed_data(dicom, min, max)
       center = (min + max)/2
       width = max - min
-      data = dicom.narray(level: [center, width])
+      data = dicom_narray(dicom, level: [center, width])
       map_to_output dicom, data, min, max
     end
 
@@ -142,11 +136,11 @@ class DicomS
         else
           level = true
         end
-        data = dicom.narray(level: level)
+        data = dicom_narray(dicom, level: level)
         [data.min, data.max]
       else
-        center = @center || dicom.window_center.value.to_i
-        width  = @width  || dicom.window_width.value.to_i
+        center = @center || dicom_window_center(dicom)
+        width  = @width  || dicom_window_width(dicom)
         low = center - width/2
         high = center + width/2
         [low, high]
@@ -198,7 +192,7 @@ class DicomS
       output_range = output_max - output_min
       input_range  = max - min
       float_arith = FLOAT_MAPPING || output_range < input_range
-      data = dicom.narray(level: false, remap: @rescale)
+      data = dicom_narray(dicom, level: false, remap: @rescale)
       data_type = data.typecode
       data = data.to_type(NArray::SFLOAT) if float_arith
       data.sbt! min
@@ -213,7 +207,7 @@ class DicomS
     private
 
     def data_range(dicom)
-      data = dicom.narray(level: false, remap: @rescale)
+      data = dicom_narray(dicom, level: false, remap: @rescale)
       base = nil
       minimum = data.min
       maximum = data.max
@@ -315,12 +309,13 @@ class DicomS
 
     def map_to_output(dicom, data, min, max)
       if @rescale
-        slope, intercept = dicom_slope_intercept(dicom)
+        intercept = dicom_rescale_intercept(dicom)
+        slope = dicom_rescale_slope(dicom)
         if slope != 1 || intercept != 0
           return super
         end
       end
-      data = dicom.narray
+      data = dicom_narray(dicom)
       data.add! -min if min < 0
       data
     end
