@@ -224,7 +224,7 @@ class DicomS
             na.mul! 2.0**(stored_bits - Magick::MAGICKCORE_QUANTUM_DEPTH)
             na = na.to_type(NArray::INT)
           else
-            na.mul! (1 << (stored_bits - Magick::MAGIsCKCORE_QUANTUM_DEPTH))
+            na.mul! (1 << (stored_bits - Magick::MAGICKCORE_QUANTUM_DEPTH))
           end
         end
         min, max = pixel_value_range(bits, signed)
