@@ -51,6 +51,7 @@ class DicomS
 
     desc "unpack dspack", "unpack a dspack file"
     option :output,   desc: 'output directory', aliases: '-o'
+    # TODO: parameters for dicom regeneration
     def unpack(dspack)
       DICOM.logger.level = Logger::FATAL
       unless File.file?(dspack)

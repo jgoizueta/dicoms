@@ -184,6 +184,7 @@ class DicomS
       first_md = last_md = nil
       lim_min = lim_max = nil
       study_id = series_id = nil
+      bits = signed = nil
 
       @visitors.push -> (dicom, i, filename) {
         unless @visited[i]
@@ -209,6 +210,14 @@ class DicomS
               lim_min, lim_max = Transfer.min_max_limits(dicom)
             end
           end
+          if bits
+            if bits != dicom_bit_depth(dicom) || signed != dicom_signed?(dicom)
+              raise "Inconsistent slices"
+            end
+          else
+            bits   = dicom_bit_depth(dicom)
+            signed = dicom_signed?(dicom)
+          end
           slice_study_id  = dicom.study_id.value # 0020,0010 SH (short string)
           slice_series_id = dicom.series_number.value.to_i # 0020,0011 IS (integer string)
           slice_image_id  = dicom.instance_number.value.to_i # 0020,0013 IS (integer string)
@@ -222,8 +231,11 @@ class DicomS
 
       if @strategy
         min, max = @strategy.min_max(self)
-        metadata.merge! min: min, max: max
+      else
+        min, max = [lim_min, lim_max]
       end
+      metadata.merge! min: min, max: max
+      metadata.merge! bits: bits, signed: signed
 
       if @roi
         firstx, lastx, firsty, lasty, firstz, lastz = @roi

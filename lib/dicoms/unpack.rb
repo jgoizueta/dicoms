@@ -1,6 +1,7 @@
 class DicomS
-  # TODO: option for pack to restore DICOM files;
-  #
+  ELEMENTS_TO_REMOVE = %w(0028,2110 0028,2112 0018,1151 0018,1152 0028,1055 7FE0,0000 7FE0,0010)
+
+  # When generating DICOMs back:
   # Elements that must be replaced (because image format is not preserved)
   #   0002,0010     Transfer Syntax UID
   #                 replace by 1.2.840.10008.1.2.1 Implicit VR Little Endian
@@ -40,6 +41,7 @@ class DicomS
   #   0002,0000     File Meta Information Group Length # drop this and 0002,0001?
   #   0002,0003     Media Storage SOP Instance UID
   #   0008,0018     SOP Instance UID
+
   def unpack(pack_file, options = {})
     options = CommandOptions[options]
 
@@ -86,15 +88,104 @@ class DicomS
     # TODO:
     # now if dicom_elements are present and are going to be used,
     # we need to adjust slice-varying elements and associate to
-    # each slice
+    # each slice,
+    # and remove and replace values as stated above
 
     metadata_yaml = File.join(unpack_dir, 'metadata.yml')
     File.open(metadata_yaml, 'w') do |yaml|
       yaml.write metadata.to_yaml
     end
 
-    # progress.begin_subprocess 'generating_dicoms', 100
-    # ...
+    if options[:dicom_output]
+      dicom_directory = options.path_option(:dicom_output,
+        'DICOM'
+      )
+      img_files = File.join(unpack_dir, "#{prefix}-*.jpeg")
+      progress.begin_subprocess 'generating_dicoms', 100, img_files.size
+      count = 0
+      pos = 0.0
+      slice_pos = 0.0
+      Dir[img_files].each do |fn, i|
+        count += 1
+        dicom_file = File.join(dicom_directory, File.basename(fn, '.jpeg')+'.dcm')
+        dicom = DICOM::DObject.new
+        dicom_elements.each do |element|
+          case element.tag
+          when '0002,0010'
+            # TODO: replace value by 1.2.840.10008.1.2.1
+          when *ELEMENTS_TO_REMOVE
+            element = nil
+          when '0020,0013'
+            element.value = count
+          when '0020,0032'
+            if count == 1
+              pos = element.value.split('\\').map(&:to_f)
+            else
+              pos[2] += metadata.dz
+              element.value = pos.join('\\')
+            end
+          when '0020,1041'
+            if count == 1
+              slice_pos = element.value.to_f
+            else
+              slice_pos += metadata.dz
+              element.value = slice_pos.to_f
+            end
+          when '0028,0101'
+            element.value = metadata.bits
+          when '0028,0102'
+            element.value = metadata.bits - 1
+          when '0028,0103'
+            element.value = metadata.signed ? 1 : 0
+          end
+          if element
+            Element.new(element.tag, element.value, :parent => dicom)
+          end
+        end
+        image = Magick::Image::read(fn).first
+        d.pixels = image_to_dicom_pixels(metadata, image)
+        dicom.write dicom_file
+        progress.update_subprocess count
+      end
+    end
     progress.finish
+  end
+
+  def image_to_dicom_pixels(metadata, image)
+    min_v = metadata.min # value assigned to black
+    max_v = metadata.max # value assigned to white
+    pixels = image.export_pixels(0, 0, image.columns, image.rows, 'I')
+    pixels =  NArray.to_na(pixels).reshape!(image.columns, image.rows)
+    pixels = pixels.to_type(NArray::SFLOAT)
+    q = Magick::MAGICKCORE_QUANTUM_DEPTH
+    min_p, max_p = pixel_value_range(q, false)
+    # min_p => min_v; max_p => max_v
+    # pixels.sbt! min_p # not needed, min_p should be 0
+    pixels.mul! (max_v - min_v).to_f/(max_p - min_p)
+    pixels.add! min_v
+    bits = metadata.bits # original bit depth, in accordance with '0028,0100' if dicom metatada present
+    signed = metadata.signed # in accordance with 0028,0103 if dicom metadata
+    if true
+      pixels = pixels.to_i
+    else
+      if bits > 16
+        if signed
+          pixels = pixels.to_type(3) # sint (signed, four bytes)
+        else
+          pixels = pixels.to_type(4) # sfloat (single precision float)
+        end
+      elsif bits > 8
+        if signed
+          pixels = pixels.to_type(2) # int (signed, two bytes)
+        else
+          pixels = pixels.to_type(3) # sint (signed, four bytes)
+        end
+      elsif signed
+        pixels = pixels.to_type(2) # sint (signed, two bytes)
+      else
+        pixels = pixels.to_type(1) # byte (unsiged)
+      end
+    end
+    pixels
   end
 end
