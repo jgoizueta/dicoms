@@ -246,7 +246,7 @@ class DicomS
         rescaled = false
       end
 
-      metadata.merge! min: min, max: max, rescaled: rescaled
+      metadata.merge! min: min, max: max, rescaled: rescaled ? 1 : 0
       metadata.merge! bits: bits, signed: signed
       metadata.merge! slope: slope, intercept: intercept
 

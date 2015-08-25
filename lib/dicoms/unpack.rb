@@ -154,7 +154,7 @@ class DicomS
   def image_to_dicom_pixels(metadata, image)
     min_v = metadata.min # value assigned to black
     max_v = metadata.max # value assigned to white
-    if metadata.rescaled
+    if metadata.rescaled.to_i == 1
       slope = metadata.slope
       intercept = metadata.intercept
       if slope != 1 || intercept != 0
