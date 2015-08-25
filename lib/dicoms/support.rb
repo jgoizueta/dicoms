@@ -137,8 +137,8 @@ class DicomS
       Vector[*v.split(',').map(&:to_f)]
     end
 
-    def output_file_name(dir, prefix, name)
-      File.join dir, "#{prefix}#{File.basename(name,'.dcm')}.jpg"
+    def output_file_name(dir, prefix, name, ext = '.jpg')
+      File.join dir, "#{prefix}#{File.basename(name,'.dcm')}#{ext}"
     end
 
     def dicom_name_pattern(name, output_dir)

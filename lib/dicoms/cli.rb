@@ -79,6 +79,9 @@ class DicomS
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
     option :min,   desc: 'minimum value (fixed transfer)'
     option :max,   desc: 'maximum value (fixed transfer)'
+    option :raw,   desc: 'generate raw output', aliases: '-r'
+    option :big, desc: 'big-endian raw output'
+    option :little, desc: 'little-endian raw output'
     def extract(dicom_dir)000
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -87,11 +90,21 @@ class DicomS
         say options
       end
 
+      raw = options.raw
+      if options.big
+        raw = true
+        big_endian = true
+      elsif options.little
+        raw = true
+        little_endian = true
+      end
+
       packer = DicomS.new(settings)
       packer.extract(
         dicom_dir,
         transfer: DicomS.transfer_options(options),
-        output: options.output
+        output: options.output,
+        raw: raw, big_endian: big_endian, little_endian: little_endian
       )
       # rescue => raise Error?
       0
