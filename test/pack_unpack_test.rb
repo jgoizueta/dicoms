@@ -44,7 +44,7 @@ describe DicomS do
           transfer: strategy,
           output: @img_dir
         )
-        img_files = Dir[File.join(@img_dir, '*')].sort
+        img_files = Dir[File.join(@img_dir, '*.jpg')].sort
         num_imgs = img_files.size
         assert num_imgs > 0
         total_size = img_files.map { |f| File.size(f) }.inject(&:+)
