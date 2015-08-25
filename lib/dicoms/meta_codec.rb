@@ -42,6 +42,7 @@ class DicomS::MetaCodec
       }
       metadata = Hash[pairs]
     end
+
     metadata.merge(additional_metadata)
   end
 
@@ -102,11 +103,11 @@ class DicomS::MetaCodec
   private
 
   def escape(txt)
-    txt.to_s.gsub('\\', '\\\\').gsub('=', '\\=').gsub(';', '\\;').gsub('#', '\\#').gsub('\n', '\\\n')
+    txt.to_s.gsub('\\', Regexp.quote('\\\\')).gsub('=', '\\=').gsub(';', '\\;').gsub('#', '\\#').gsub('\n', '\\\n')
   end
 
   def unescape(txt)
-    txt.to_s.gsub('\\\\', '\\').gsub('\\=', '=').gsub('\\;', ';').gsub('\\#', '#').gsub('\\\n', '\n')
+    txt.to_s.gsub('\\\\', Regexp.quote('\\')).gsub('\\=', '=').gsub('\\;', ';').gsub('\\#', '#').gsub('\\\n', '\n')
   end
 
   VALUE_SEPARATOR = '>'
