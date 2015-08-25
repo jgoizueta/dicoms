@@ -51,6 +51,7 @@ class DicomS
 
     desc "unpack dspack", "unpack a dspack file"
     option :output,   desc: 'output directory', aliases: '-o'
+    option :dicom,    desc: 'dicom format output directory', aliases: '-d'
     # TODO: parameters for dicom regeneration
     def unpack(dspack)
       DICOM.logger.level = Logger::FATAL
@@ -60,7 +61,11 @@ class DicomS
       end
       settings = {} # TODO: ...
       packer = DicomS.new(settings)
-      packer.unpack dspack
+      packer.unpack(
+        dspack,
+        output: options.output,
+        dicom_output: options.dicom
+      )
       # rescue => raise Error?
       0
     end
