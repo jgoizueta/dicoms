@@ -95,7 +95,7 @@ class DicomS
 
     attr_reader :files, :strategy
     attr_accessor :metadata
-    attr_reader  :image_cropping
+    attr_reader :image_cropping
 
     def transfer
       @strategy
