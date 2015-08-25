@@ -1,8 +1,34 @@
 require 'matrix'
 
 class DicomS
-  # Sequence of DICOM CT/MRI slices
-  # Metadata about the sequence including the orientation of RCS
+  # DICOM series containing a sequence of CT/MRI image slices.
+  #
+  # The following metadata about the series is computed:
+  #
+  # * min: pixel value corresponding to the minimum output level
+  # * max: pixel value corresponding to the maximum output level
+  # * rescaled: 1 means that min and max are photometrically rescaled
+  #   values; 0 means they are internal raw values.
+  # * slope, intercept: photometric rescaling parameters.
+  # * lim_min, lim_max: (raw) output enconding range limits
+  # * bits: bit-depth of the original pixel values
+  # * signed: 1-pixels values are signed 0-unsigned
+  # * firstx: first X coordinate (slice number) of the ROI
+  # * lastx: lastt X coordinate (slice number) of the ROI
+  # * firsty: first Y coordinate of the ROI
+  # * lasty: last Y coordinate of the ROI
+  # * lastz:lastt Z coordinate of the ROI
+  # * study_id, series_id: identification of the patient's study/series
+  # * dx, dy, dz: voxel spacing (dx, dy is pixel spacing; dz is the slice spacing)
+  # * x, y, z: image position (in RCS; see below)
+  # * xaxis, yaxis, zaxis: each is a three-component vector defining an axis
+  #   of the image orientation (see below) (encoded as comma-separated string)
+  # * slice_z: slice position
+  # * nx: number of columns
+  # * ny: number of rows
+  # * nz: number of slices
+  #
+  # Orientation of RCS
   # (patient coordinate system) in relation to the DICOM sequence
   # reference. This is given as three vectors xaxis yaxis and zaxis.
   #
@@ -236,7 +262,7 @@ class DicomS
         end
       }
 
-      metadata = Settings[]
+      metadata = Settings[version: 'DSPACK1']
 
       if @strategy
         min, max = @strategy.min_max(self)
@@ -247,7 +273,7 @@ class DicomS
       end
 
       metadata.merge! min: min, max: max, rescaled: rescaled ? 1 : 0
-      metadata.merge! bits: bits, signed: signed
+      metadata.merge! bits: bits, signed: signed ? 1 : 0
       metadata.merge! slope: slope, intercept: intercept
 
       if @roi

@@ -3,9 +3,20 @@ require 'matrix'
 class DicomS
   USE_SLICE_Z = false
   METADATA_TYPES = {
+    # Note: for axisx, axisy, axisz decode_vector should be used
     dx: :to_f, dy: :to_f, dz: :to_f,
     nx: :to_i, ny: :to_i, nz: :to_i,
-    max: :to_i, min: :to_i
+    max: :to_i, min: :to_i,
+    lim_min: :to_i, lim_max: :to_i,
+    rescaled: :to_i, # 0-false 1-true
+    slope: :to_f, intercept: :to_f,
+    bits: :to_i,
+    signed: :to_i, # 0-false 1-true
+    firstx: :to_i, firsty: :to_i, firstz: :to_i,
+    lastx: :to_i, lasty: :to_i, lastz: :to_i,
+    study_id: :to_s, series_id: :to_i,
+    x: :to_f, y: :to_f, z: :to_f,
+    slize_z: :to_f
   }
 
   module Support
@@ -76,17 +87,24 @@ class DicomS
     end
 
     def single_dicom_metadata(dicom)
+      # 0028,0030 Pixel Spacing:
       dx, dy = dicom.pixel_spacing.value.split('\\').map(&:to_f)
+      # 0020,0032 Image Position (Patient):
       x, y, z = dicom.image_position_patient.value.split('\\').map(&:to_f)
+      # 0020,0037 Image Orientation (Patient):
       xx, xy, xz, yx, yy, yz = dicom.image_orientation_patient.value.split('\\').map(&:to_f)
       if USE_SLICE_Z
         # according to http://www.vtk.org/Wiki/VTK/FAQ#The_spacing_in_my_DICOM_files_are_wrong
         # this is not reliable
+        # 0020,1041 Slice Location:
         slice_z = dicom.slice_location.value.to_f
       else
         slice_z = z
       end
+
+      # 0028,0011 Columns :
       nx = dicom.num_cols # dicom.columns.value.to_i
+      # 0028,0010 Rows:
       ny = dicom.num_rows # dicom.rows.value.to_i
 
       unless dicom.samples_per_pixel.value.to_i == 1
@@ -276,7 +294,7 @@ class DicomS
             end
           end
         end
-        
+
         na
       else
         dicom.narray options

@@ -57,6 +57,7 @@ class DicomS
 
     progress.begin_subprocess 'extracting_images', -70
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-y' # overwrite existing files
       option '-hide_banner'
       option '-loglevel', 'quiet'
       option '-i', file: pack_file
@@ -69,6 +70,7 @@ class DicomS
     progress.begin_subprocess 'extracting_metadata', -10
     metadata_file = File.join(unpack_dir, 'metadata.txt')
     ffmpeg = SysCmd.command('ffmpeg', @ffmpeg_options) do
+      option '-y' # overwrite existing files
       option '-hide_banner'
       option '-loglevel', 'quiet'
       option '-i', file: pack_file
@@ -85,11 +87,6 @@ class DicomS
       value = value.send(trans) if trans
       [key, value]
     }]
-    # TODO:
-    # now if dicom_elements are present and are going to be used,
-    # we need to adjust slice-varying elements and associate to
-    # each slice,
-    # and remove and replace values as stated above
 
     metadata_yaml = File.join(unpack_dir, 'metadata.yml')
     File.open(metadata_yaml, 'w') do |yaml|
@@ -97,6 +94,7 @@ class DicomS
     end
 
     if options[:dicom_output]
+      metadata = Settings[metadata]
       dicom_directory = options.path_option(:dicom_output,
         'DICOM'
       )
@@ -136,14 +134,14 @@ class DicomS
           when '0028,0102'
             element.value = metadata.bits - 1
           when '0028,0103'
-            element.value = metadata.signed ? 1 : 0
+            element.value = metadata.signed
           end
           if element
-            Element.new(element.tag, element.value, :parent => dicom)
+            DICOM::Element.new(element.tag, element.value, :parent => dicom)
           end
         end
         image = Magick::Image::read(fn).first
-        d.pixels = image_to_dicom_pixels(metadata, image)
+        dicom.pixels = image_to_dicom_pixels(metadata, image)
         dicom.write dicom_file
         progress.update_subprocess count
       end
@@ -173,7 +171,7 @@ class DicomS
     pixels.mul! (max_v - min_v).to_f/(max_p - min_p)
     pixels.add! min_v
     bits = metadata.bits # original bit depth, in accordance with '0028,0100' if dicom metatada present
-    signed = metadata.signed # in accordance with 0028,0103 if dicom metadata
+    signed = metadata.signed == 1 ? true : false # in accordance with 0028,0103 if dicom metadata
     if true
       pixels = pixels.to_i
     else
