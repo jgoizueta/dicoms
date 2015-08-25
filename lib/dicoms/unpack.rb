@@ -154,6 +154,15 @@ class DicomS
   def image_to_dicom_pixels(metadata, image)
     min_v = metadata.min # value assigned to black
     max_v = metadata.max # value assigned to white
+    if metadata.rescaled
+      slope = metadata.slope
+      intercept = metadata.intercept
+      if slope != 1 || intercept != 0
+        # unscale
+        min_v = (min_v - intercept)/slope
+        max_v = (max_v - intercept)/slope
+      end
+    end
     pixels = image.export_pixels(0, 0, image.columns, image.rows, 'I')
     pixels =  NArray.to_na(pixels).reshape!(image.columns, image.rows)
     pixels = pixels.to_type(NArray::SFLOAT)

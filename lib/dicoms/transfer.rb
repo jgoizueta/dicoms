@@ -13,6 +13,10 @@ class DicomS
   # * :byte Output consist of single byte values (0-255)
   # * :unsigned Output is always unsigned
   #
+  # The method min_max(sequence) of each class returns the minimum and maximum
+  # values which are mapped to the output limits.
+  # These values may be raw or rescaled depending on the min_max_rescaled? method
+  #
   class Transfer
     USE_DATA = false
 
@@ -58,6 +62,7 @@ class DicomS
       strategy_class.new options
     end
 
+    # absolute output limits of the range (raw, not rescaled)
     def min_max_limits(dicom)
       case @output
       when :byte
@@ -98,6 +103,10 @@ class DicomS
       # TODO: use options to sample/take first/take all?
       dicom = sequence.first
       data_range dicom
+    end
+
+    def min_max_rescaled?
+      true
     end
 
     def processed_data(dicom, min, max)
@@ -187,6 +196,10 @@ class DicomS
       [minimum, maximum]
     end
 
+    def min_max_rescaled?
+      @rescale
+    end
+
     def processed_data(dicom, min, max)
       output_min, output_max = min_max_limits(dicom)
       output_range = output_max - output_min
@@ -242,6 +255,9 @@ class DicomS
       @fixed_max = options[:max] || +2048
       options[:ignore_min] = false
       options[:extend] = nil
+      unless options.key?(:rescale)
+        options[:rescale] = true
+      end
       super options
     end
 

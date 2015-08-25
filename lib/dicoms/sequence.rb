@@ -185,6 +185,7 @@ class DicomS
       lim_min = lim_max = nil
       study_id = series_id = nil
       bits = signed = nil
+      slope = intercept = nil
 
       @visitors.push -> (dicom, i, filename) {
         unless @visited[i]
@@ -218,6 +219,14 @@ class DicomS
             bits   = dicom_bit_depth(dicom)
             signed = dicom_signed?(dicom)
           end
+          if slope
+            if slope != dicom_rescale_slope(dicom) || intercept != dicom_rescale_intercept(dicom)
+              raise "Inconsitent slices"
+            end
+          else
+            slope = dicom_rescale_slope(dicom)
+            intercept = dicom_rescale_intercept(dicom)
+          end
           slice_study_id  = dicom.study_id.value # 0020,0010 SH (short string)
           slice_series_id = dicom.series_number.value.to_i # 0020,0011 IS (integer string)
           slice_image_id  = dicom.instance_number.value.to_i # 0020,0013 IS (integer string)
@@ -231,11 +240,15 @@ class DicomS
 
       if @strategy
         min, max = @strategy.min_max(self)
+        rescaled = @strategy.min_max_rescaled?
       else
         min, max = [lim_min, lim_max]
+        rescaled = false
       end
-      metadata.merge! min: min, max: max
+
+      metadata.merge! min: min, max: max, rescaled: rescaled
       metadata.merge! bits: bits, signed: signed
+      metadata.merge! slope: slope, intercept: intercept
 
       if @roi
         firstx, lastx, firsty, lasty, firstz, lastz = @roi
