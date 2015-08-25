@@ -81,12 +81,7 @@ class DicomS
     check_command ffmpeg
 
     dicom_elements, metadata = meta_codec.read_metadata(metadata_file)
-    metadata = Hash[metadata.to_a.map { |key, value|
-      key = key.to_s.downcase.to_sym
-      trans = METADATA_TYPES[key]
-      value = value.send(trans) if trans
-      [key, value]
-    }]
+    metadata = cast_metadata(metadata)
 
     metadata_yaml = File.join(unpack_dir, 'metadata.yml')
     File.open(metadata_yaml, 'w') do |yaml|
@@ -94,7 +89,6 @@ class DicomS
     end
 
     if options[:dicom_output]
-      metadata = Settings[metadata]
       dicom_directory = options.path_option(:dicom_output,
         'DICOM'
       )

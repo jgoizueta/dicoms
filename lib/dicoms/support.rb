@@ -20,6 +20,16 @@ class DicomS
   }
 
   module Support
+    def cast_metadata(metadata)
+      metadata = Hash[metadata.to_h.to_a.map { |key, value|
+        key = key.to_s.downcase.to_sym
+        trans = METADATA_TYPES[key]
+        value = value.send(trans) if trans
+        [key, value]
+      }]
+      Settings[metadata]
+    end
+
     # Code that use images should be wrapped with this.
     #
     # Reason: if RMagick is used by DICOM to handle images,

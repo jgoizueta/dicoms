@@ -24,8 +24,13 @@ class DicomS
       sequence.save_jpg d, output_image
       progress.update_subprocess i
     end
-    # TODO: save sequence.metadata as yml/JSON in pack_dir
-    extract_dir
+
+    metadata = cast_metadata(sequence.metadata)
+    metadata_yaml = File.join(extract_dir, 'metadata.yml')
+    File.open(metadata_yaml, 'w') do |yaml|
+      yaml.write metadata.to_yaml
+    end
+
     progress.finish
   end
 end
