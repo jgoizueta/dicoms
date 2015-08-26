@@ -9,7 +9,7 @@ class DicomS
   def projection(dicom_directory, options = {})
     options = CommandOptions[options]
 
-    progress = Progress.new('generating_projections', options)
+    progress = Progress.new('projecting', options)
     progress.begin_subprocess 'reading_metadata', 1
 
     # We can save on memory use by using 8-bit processing, so it will be the default
