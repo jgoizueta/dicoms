@@ -6,7 +6,7 @@ class DicomS
     # to minimum (black) and maximum (white)
     options = CommandOptions[options]
 
-    progress = Progress.new('packing', options)
+    progress = Progress.new('packaging', options)
     progress.begin_subprocess 'reading_metadata', 2
 
     strategy = define_transfer(options, :sample)
