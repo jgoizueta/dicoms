@@ -38,13 +38,15 @@ class DicomS
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      packer = DicomS.new(settings)
-      packer.pack(
-        dicom_dir,
-        transfer: DicomS.transfer_options(options),
+      cmd_options = CommandOptions[
+        settings: options.settings,
+        settings_io: options.settings_io,
         output: options.output,
-        tmp:  options.tmp
-      )
+        tmp:  options.tmp,
+        dicom_metadata: true
+      ]
+      packer = DicomS.new(settings)
+      packer.pack dicom_dir, cmd_options
       # rescue => raise Error?
       0
     end

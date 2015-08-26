@@ -12,7 +12,7 @@ class DicomS
     strategy = define_transfer(options, :sample)
     sequence = Sequence.new(dicom_directory, transfer: strategy, roi: options[:roi])
 
-    output_name = (options[:output] || File.basename(dicom_directory)) + '.mkv'
+    output_name = (options.path_option(:output) || File.basename(dicom_directory)) + '.mkv'
     pack_dir = options.path_option(:tmp, 'dspack_tmp') # TODO: better default
     FileUtils.mkdir_p pack_dir
 
