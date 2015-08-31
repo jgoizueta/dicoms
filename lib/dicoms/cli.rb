@@ -138,6 +138,9 @@ class DicomS
     option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
     option :min,   desc: 'minimum value (fixed transfer)'
     option :max,   desc: 'maximum value (fixed transfer)'
+    option :max_x_pixels, desc: 'maximum number of pixels in the X direction'
+    option :max_y_pixels, desc: 'maximum number of pixels in the Y direction'
+    option :max_z_pixels, desc: 'maximum number of pixels in the Z direction'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -149,7 +152,10 @@ class DicomS
         cmd_options = CommandOptions[
           settings: options.settings,
           settings_io: options.settings_io,
-          output: options.output
+          output: options.output,
+          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
+          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
+          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i
         ]
       else
         cmd_options = CommandOptions[
@@ -157,7 +163,10 @@ class DicomS
           output: options.output,
           axial: options.axial == 'axial' ? 'mip' : options.axial,
           sagittal: options.sagittal == 'sagittal' ? 'mip' : options.sagittal,
-          coronal: options.coronal == 'coronal' ? 'mip' : options.coronal
+          coronal: options.coronal == 'coronal' ? 'mip' : options.coronal,
+          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
+          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
+          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i
         ]
       end
       unless cmd_options.axial || options.sagittal || options.coronal

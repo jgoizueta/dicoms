@@ -125,7 +125,7 @@ class DicomS
     if single_slice_projection?(options[:coronal])
       coronal_ys = [options[:coronal].to_i]
     elsif center_slice_projection?(options[:coronal])
-      coronal_ys = [[(miny_contents+maxy_contents)/2, 'c']]
+      coronal_ys = [[(miny_contents+maxy_conte0nts)/2, 'c']]
     elsif middle_slice_projection?(options[:coronal])
       coronal_ys = [[maxy/2, 'm']]
     elsif full_projection?(options[:coronal])
@@ -142,6 +142,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        dx: sequence.metadata.dx, dy: sequence.metadata.dy,
+        maxcols: options.maxcols || options.max_x_pixels,
+        maxrows: options.maxrows || options.max_y_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess i
     end
@@ -150,6 +153,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        dx: sequence.metadata.dy, dy: sequence.metadata.dz,
+        maxcols: options.maxcols || options.max_y_pixels,
+        maxrows: options.maxrows || options.max_z_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess axial_zs.size + i
     end
@@ -158,6 +164,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        dx: sequence.metadata.dx, dy: sequence.metadata.dz,
+        maxcols: options.maxcols || options.max_x_pixels,
+        maxrows: options.maxrows || options.max_z_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess axial_zs.size + sagittal_xs.size + i
     end
@@ -188,6 +197,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        dx: sequence.metadata.dx, dy: sequence.metadata.dy,
+        maxcols: options.maxcols || options.max_x_pixels,
+        maxrows: options.maxrows || options.max_y_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       i += 1
       progress.update_subprocess i
@@ -205,6 +217,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        dx: sequence.metadata.dx, dy: sequence.metadata.dz,
+        maxcols: options.maxcols || options.max_x_pixels,
+        maxrows: options.maxrows || options.max_z_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       i += 1
       progress.update_subprocess i
@@ -222,6 +237,9 @@ class DicomS
       output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
       save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        dx: sequence.metadata.dy, dy: sequence.metadata.dz,
+        maxcols: options.maxcols || options.max_y_pixels,
+        maxrows: options.maxrows || options.max_z_pixels,
         normalize: NORMALIZE_PROJECTION_IMAGES
       i += 1
       progress.update_subprocess i
@@ -292,6 +310,13 @@ class DicomS
     reverse_x = options[:reverse_x]
     reverse_y = options[:reverse_y]
     normalize = options[:normalize]
+    # pixel aspect:
+    dx = options[:dx] || 1
+    dy = options[:dy] || 1
+    # max image size
+    maxcols = options[:maxcols]
+    maxrows = options[:maxrows]
+
     columns, rows = pixels.shape
 
     if ASSIGN_IMAGE_PIXELS_AS_ARRAY
@@ -319,10 +344,32 @@ class DicomS
       end
       image = Magick::Image.new(columns, rows).import_pixels(0, 0, columns, rows, 'I', blob, rm_type)
     end
-
     image.flip! if reverse_y
     image.flop! if reverse_x
     image = image.normalize if normalize
+    if dx != dy || maxcols || maxrows
+      sx = sx0 = image.columns
+      sy = sy0 = image.rows
+      maxcols ||= sx0
+      maxrows ||= sy0
+      if dx > dy
+        sy *= dy.to_f/dx
+      else
+        sy *= dx.to_f/dy
+      end
+      if sx > maxcols || sy > maxrows
+        fx = maxcols.to_f/sx
+        fy = maxrows.to_f/sy
+        f = [fx, fy].min
+        sx *= f
+        sy *= f
+      end
+      sx = sx.round
+      sy = sy.round
+      if sx != sx0 || sy != sy0
+        image = image.resize(sx, sy)
+      end
+    end
     image.write(output_image)
   end
 
