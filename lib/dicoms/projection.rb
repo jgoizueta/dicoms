@@ -125,7 +125,7 @@ class DicomS
     if single_slice_projection?(options[:coronal])
       coronal_ys = [options[:coronal].to_i]
     elsif center_slice_projection?(options[:coronal])
-      coronal_ys = [[(miny_contents+maxy_conte0nts)/2, 'c']]
+      coronal_ys = [[(miny_contents+maxy_contents)/2, 'c']]
     elsif middle_slice_projection?(options[:coronal])
       coronal_ys = [[maxy/2, 'm']]
     elsif full_projection?(options[:coronal])
