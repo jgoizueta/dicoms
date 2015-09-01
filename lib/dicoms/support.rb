@@ -16,7 +16,16 @@ class DicomS
     lastx: :to_i, lasty: :to_i, lastz: :to_i,
     study_id: :to_s, series_id: :to_i,
     x: :to_f, y: :to_f, z: :to_f,
-    slize_z: :to_f
+    slize_z: :to_f,
+    reverse_x: :to_i, # 0-false 1-true
+    reverse_y: :to_i, # 0-false 1-true
+    reverse_z: :to_i, # 0-false 1-true
+    axial_sx: :to_f,
+    axial_sy: :to_f,
+    coronal_sx: :to_f,
+    coronal_sy: :to_f,
+    sagittal_sx: :to_f,
+    sagittal_sy: :to_f
   }
 
   module Support

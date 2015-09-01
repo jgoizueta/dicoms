@@ -27,17 +27,9 @@ class DicomS
        bits = 16
     end
 
-    xaxis = decode_vector(sequence.metadata.xaxis)
-    yaxis = decode_vector(sequence.metadata.yaxis)
-    zaxis = decode_vector(sequence.metadata.zaxis)
-    if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
-       yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
-       zaxis[0] != 0 || zaxis[1] != 0 || zaxis[2].abs != 1
-      raise Error, "Unsupported orientation"
-    end
-    reverse_x = xaxis[0] < 0
-    reverse_y = yaxis[1] < 0
-    reverse_z = zaxis[2] < 0
+    reverse_x = sequence.metadata.reverse_x.to_i == 1
+    reverse_y = sequence.metadata.reverse_y.to_i == 1
+    reverse_z = sequence.metadata.reverse_z.to_i == 1
 
     maxx = sequence.metadata.nx
     maxy = sequence.metadata.ny
@@ -136,11 +128,13 @@ class DicomS
 
     n = axial_zs.size + sagittal_xs.size + coronal_ys.size
 
+    axial_scale = coronal_scale = sagittal_scale = nil
+
     progress.begin_subprocess 'generating_slices', -70, n if n > 0
     axial_zs.each_with_index do |(z, suffix), i|
       slice = volume[true, true, z]
       output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
-      save_pixels slice, output_image,
+      axial_scale = save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
         dx: sequence.metadata.dx, dy: sequence.metadata.dy,
         maxcols: options.maxcols || options.max_x_pixels,
@@ -151,7 +145,7 @@ class DicomS
     sagittal_xs.each_with_index do |(x, suffix), i|
       slice = volume[x, true, true]
       output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
-      save_pixels slice, output_image,
+      sagittal_scale = save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
         dx: sequence.metadata.dy, dy: sequence.metadata.dz,
         maxcols: options.maxcols || options.max_y_pixels,
@@ -162,7 +156,7 @@ class DicomS
     coronal_ys.each_with_index do |(y, suffix), i|
       slice = volume[true, y, true]
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
-      save_pixels slice, output_image,
+      corotnal_scale save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
         dx: sequence.metadata.dx, dy: sequence.metadata.dz,
         maxcols: options.maxcols || options.max_x_pixels,
@@ -195,7 +189,7 @@ class DicomS
         slice = maximum_intensity_projection(volume, Z_AXIS)
       end
       output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
-      save_pixels slice, output_image,
+      axial_scale = save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
         dx: sequence.metadata.dx, dy: sequence.metadata.dy,
         maxcols: options.maxcols || options.max_x_pixels,
@@ -215,7 +209,7 @@ class DicomS
          slice = maximum_intensity_projection(volume, Y_AXIS)
       end
       output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
-      save_pixels slice, output_image,
+      coronal_scale = save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
         dx: sequence.metadata.dx, dy: sequence.metadata.dz,
         maxcols: options.maxcols || options.max_x_pixels,
@@ -235,7 +229,7 @@ class DicomS
         slice = maximum_intensity_projection(volume, X_AXIS)
       end
       output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
-      save_pixels slice, output_image,
+      sagittal_scale = save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
         dx: sequence.metadata.dy, dy: sequence.metadata.dz,
         maxcols: options.maxcols || options.max_y_pixels,
@@ -245,6 +239,9 @@ class DicomS
       progress.update_subprocess i
     end
     float_v = nil
+    sequence.metadata.merge! axial_scale: axial_scale
+    sequence.metadata.merge! coronal_scale: coronal_scale
+    sequence.metadata.merge! sagittal_scale: sagittal_scale
     options.save_settings sequence.metadata
     progress.finish
   end
@@ -347,6 +344,7 @@ class DicomS
     image.flip! if reverse_y
     image.flop! if reverse_x
     image = image.normalize if normalize
+    scalex = scaley = 1
     if dx != dy || maxcols || maxrows
       sx = sx0 = image.columns
       sy = sy0 = image.rows
@@ -368,9 +366,12 @@ class DicomS
       sy = sy.round
       if sx != sx0 || sy != sy0
         image = image.resize(sx, sy)
+        scalex = sx/sx0.to_f
+        scaley = sy/sy0.to_f
       end
     end
     image.write(output_image)
+    [scalex, scaley]
   end
 
 end

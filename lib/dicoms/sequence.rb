@@ -27,6 +27,15 @@ class DicomS
   # * nx: number of columns
   # * ny: number of rows
   # * nz: number of slices
+  # * reverse_x 1 means the X axis is reversed (from RCS)
+  # * reverse_y 1 means the Y axis is reversed (from RCS)
+  # * reverse_< 1 means the Z axis is reversed (from RCS)
+  # * axial_sx scale factor: horizontal reduction of axial projections
+  # * axial_sy scale factor: vertical reduction of axial projections
+  # * coronal_sx scale factor: horizontal reduction of coronal projections
+  # * coronal_sy scale factor: vertical reduction of coronal projections
+  # * sagittal_sx scale factor: horizontal reduction of sagittal projections
+  # * sagittal_sy scale factor: vertical reduction of sagittal projections
   #
   # Orientation of RCS
   # (patient coordinate system) in relation to the DICOM sequence
@@ -63,34 +72,37 @@ class DicomS
   class Sequence
     def initialize(dicom_directory, options = {})
       @roi = options[:roi]
-      if @roi
-        if @roi.size == 6
-          first_x, last_x, first_y, last_y, first_z, last_z = @roi
-        else
-          xrange, yrange, zrange = @roi
-          first_x = xrange.first
-          last_x = xrange.last
-          last_x -= 1 if xrange.exclude_end?
-          first_y = yrange.first
-          last_y = yrange.last
-          last_y -= 1 if yrange.exclude_end?
-          first_z = zrange.first
-          last_z = zrange.last
-          last_z -= 1 if zrange.exclude_end?
-        end
-        @selected_slices = (first_z..last_z)
-        @image_cropping = [first_x, last_x, first_y, last_y]
-      end
       @files = find_dicom_files(dicom_directory)
-      @files = @files[@selected_slices] if @selected_slices
-      if @files.empty?
-        raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
-      end
       @visitors = Array(options[:visit])
       @visited = Array.new(@files.size)
       @metadata = nil
       @strategy = options[:transfer]
+      @metadata = Settings[version: 'DSPACK1']
+
+      # TODO: reuse existing metadata in options (via settings)
+
+      # if information about the series size (nx, ny, nz)
+      # and the axis orientation (reverse_x, reverse_y, reverse_z)
+      # is available here we can set the @roi now and avoid
+      # processing slices outside it. (in that case the
+      # metadata won't consider those slices, e.g. for minimum/maximum
+      # pixel values)
+      if options[:nx] && options[:ny] && options[:nz] &&
+         options.to_h.has_key?(:reverse_x) &&
+         options.to_h.has_key?(:reverse_y) &&
+         options.to_h.has_key?(:reverse_z)
+        @metadata.merge!(
+          nx: options[:nx], ny: options[:ny], nz: options[:nz],
+          reverse_x: options[:reverse_x],
+          reverse_y: options[:reverse_y],
+          reverse_z: options[:reverse_z]
+        )
+        set_cropping_volume!
+        cropping_set = true
+      end
+
       compute_metadata!
+      set_cropping_volume! unless cropping_set
     end
 
     attr_reader :files, :strategy
@@ -200,11 +212,6 @@ class DicomS
     private
 
     def compute_metadata!
-      return unless @metadata.nil?
-
-      # TODO: with stored metadata option, if metadata exist in dicom dir, use it
-      # and store it first time it is computed
-
       first_i = nil
       last_i = nil
       first_md = last_md = nil
@@ -262,8 +269,6 @@ class DicomS
         end
       }
 
-      metadata = Settings[version: 'DSPACK1']
-
       if @strategy
         min, max = @strategy.min_max(self)
         rescaled = @strategy.min_max_rescaled?
@@ -272,18 +277,9 @@ class DicomS
         rescaled = false
       end
 
-      metadata.merge! min: min, max: max, rescaled: rescaled ? 1 : 0
-      metadata.merge! bits: bits, signed: signed ? 1 : 0
-      metadata.merge! slope: slope, intercept: intercept
-
-      if @roi
-        firstx, lastx, firsty, lasty, firstz, lastz = @roi
-        metadata.merge!(
-          firstx: firstx, lastx: lastx,
-          firsty: firsty, lasty: lasty,
-          firstz: firstz, lastz: lastz
-        )
-      end
+      @metadata.merge! min: min, max: max, rescaled: rescaled ? 1 : 0
+      @metadata.merge! bits: bits, signed: signed ? 1 : 0
+      @metadata.merge! slope: slope, intercept: intercept
 
       # make sure at least two different DICOM files are visited
       if first_i == last_i
@@ -292,18 +288,18 @@ class DicomS
           first
         end
       end
-      # TODO: remove slice_z from metadata...
+      # TODO: remove slice_z from @metadata...
 
       if false
         # always visit first and last slice
         first unless first_i == 0
         last  unless last_i  == size - 1
-        # TODO: change metadata :x, :y, :z by max-min ranges or remove
+        # TODO: change @metadata :x, :y, :z by max-min ranges or remove
       end
 
-      metadata.merge! study_id: study_id, series_id: series_id
-      metadata.lim_min = lim_min
-      metadata.lim_max = lim_max
+      @metadata.merge! study_id: study_id, series_id: series_id
+      @metadata.lim_min = lim_min
+      @metadata.lim_max = lim_max
 
       total_n = size
 
@@ -319,12 +315,59 @@ class DicomS
       d = last_pos - first_pos
       zaxis = -zaxis if zaxis.inner_product(d) < 0
 
-      metadata.merge! Settings[first_md]
-      metadata.zaxis = encode_vector zaxis
-      metadata.nz = total_n
-      metadata.dz = (last_md.slice_z - first_md.slice_z).abs/n
+      @metadata.merge! Settings[first_md]
+      @metadata.zaxis = encode_vector zaxis
+      @metadata.nz = total_n
+      @metadata.dz = (last_md.slice_z - first_md.slice_z).abs/n
 
-      @metadata = metadata
+      if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
+         yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
+         zaxis[0] != 0 || zaxis[1] != 0 || zaxis[2].abs != 1
+        raise Error, "Unsupported orientation"
+      end
+      @metadata.reverse_x = (xaxis[0] < 0) ? 1 : 0
+      @metadata.reverse_y = (yaxis[1] < 0) ? 1 : 0
+      @metadata.reverse_z = (zaxis[2] < 0) ? 1 : 0
+    end
+
+    def set_cropping_volume!
+      if @roi
+        if @roi.size == 6
+          first_x, last_x, first_y, last_y, first_z, last_z = @roi.map(&:round)
+        else
+          xrange, yrange, zrange = @roi
+          first_x = xrange.first
+          last_x = xrange.last
+          last_x -= 1 if xrange.exclude_end?
+          first_y = yrange.first
+          last_y = yrange.last
+          last_y -= 1 if yrange.exclude_end?
+          first_z = zrange.first
+          last_z = zrange.last
+          last_z -= 1 if zrange.exclude_end?
+        end
+        x1, x2 = first_x, last_x
+        y1, y2 = first_y, last_y
+        z1, z2 = first_z, last_z
+        if @metadata.reverse_x == 1
+          x1, x2 = [x1, x2].map { |x| metadata.nx - x }.sort
+        end
+        if @metadata.reverse_y == 1
+          y1, y2 = [y1, y2].map { |y| metadata.ny - y }.sort
+        end
+        if @metadata.reverse_z == 1
+          z1, z2 = [z1, z2].map { |z| metadata.nz - z }.sort
+        end
+        @image_cropping = [x1, x2, y1, y2]
+        @selected_slices = (z1..z2)
+        @files = @files[@selected_slices]
+        @visited = @visited[@selected_slices]
+        @metadata.merge!(
+          firstx: first_x, lastx: last_x,
+          firsty: first_y, lasty: last_y,
+          firstz: first_z, lastz: last_z
+        )
+      end
     end
 
     def visit_all
