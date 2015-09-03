@@ -3,6 +3,7 @@ class DicomS
     def initialize(description, options={})
       options = CommandOptions[options]
       filename = options.path_option(:progress)
+      @progress = options[:initial_progress] || 0
       # TODO: if filename == :console, show progress on the console
       if filename
         @file = SharedSettings.new(
@@ -10,13 +11,12 @@ class DicomS
           replace_contents: {
             process: description,
             subprocess: options[:subprocess],
-            progress: options[:initial_progress] || 0
+            progress: @progress
           }
         )
       else
         @file = nil
       end
-      @progress = 0
       @subprocess_start = @subprocess_size = @subprocess_percent = nil
     end
 
