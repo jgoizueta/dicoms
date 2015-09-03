@@ -65,6 +65,8 @@ class DicomS
       packer = DicomS.new(settings)
       packer.unpack(
         dspack,
+        settings: options.settings,
+        settings_io: options.settings_io,
         output: options.output,
         dicom_output: options.dicom
       )
