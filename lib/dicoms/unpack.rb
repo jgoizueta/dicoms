@@ -93,6 +93,14 @@ class DicomS
         'DICOM'
       )
       img_files = File.join(unpack_dir, "#{prefix}-*.jpeg")
+      if options.roi
+        firstx, lastx, firsty, lasty, firstz, lastz = options.roi
+        columns = lastx - firstx + 1
+        rows = lasty - firsty + 1
+      else
+        rows = metadata.ny
+        columns = metadata.nx
+      end
       progress.begin_subprocess 'generating_dicoms', 100, img_files.size
       count = 0
       pos = 0.0
@@ -100,6 +108,12 @@ class DicomS
       Dir[img_files].each do |fn, i|
         count += 1
         dicom_file = File.join(dicom_directory, File.basename(fn, '.jpeg')+'.dcm')
+        image = Magick::Image::read(fn).first
+        image_columns = image.columns
+        image_rows = image.rows
+        if image_columns != columns || image_rows != rows
+          raise "Inconsistent image size"
+        end
         dicom = DICOM::DObject.new
         dicom_elements.each do |element|
           case element.tag
@@ -123,6 +137,10 @@ class DicomS
               slice_pos += metadata.dz
               element.value = slice_pos.to_f
             end
+          when '0028,0010'
+            element.value = image_rows
+          when '0028,0011'
+            element.value = image_columns
           when '0028,0101'
             element.value = metadata.bits
           when '0028,0102'
@@ -134,7 +152,6 @@ class DicomS
             DICOM::Element.new(element.tag, element.value, :parent => dicom)
           end
         end
-        image = Magick::Image::read(fn).first
         dicom.pixels = image_to_dicom_pixels(metadata, image)
         dicom.write dicom_file
         progress.update_subprocess count
