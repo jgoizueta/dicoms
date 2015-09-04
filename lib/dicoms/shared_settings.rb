@@ -9,6 +9,7 @@ class DicomS
     def initialize(name, options = {})
       @file = SharedFile.new(name)
       @format = options[:format]
+      @compact = options[:compact]
       unless @format
         if File.extname(@file.name) == '.json'
           @format = :json
@@ -64,7 +65,11 @@ class DicomS
       case @format
       when :json
         if data.is_a?(Settings)
-          data.to_h.to_json
+          if @compact
+            data.to_h.to_json
+          else
+            JSON.pretty_generate(data)
+          end
         else
           data.to_json
         end
