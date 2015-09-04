@@ -62,16 +62,18 @@ class DicomS
     private
 
     def encode(data)
+      if data.is_a?(Settings) || data.is_a?(Hash)
+        # Specially for YAML, we don't want to use symbols for
+        # hash keys because if read with languages other than
+        # Ruby that may cause some troubles.
+        data = stringify_keys(data.to_h)
+      end
       case @format
       when :json
-        if data.is_a?(Settings)
-          if @compact
-            data.to_h.to_json
-          else
-            JSON.pretty_generate(data)
-          end
+        if @compact
+          JSON.dump data
         else
-          data.to_json
+          JSON.pretty_generate data
         end
       when :yaml
         data.to_yaml
@@ -87,6 +89,19 @@ class DicomS
       end
       if data.is_a?(Hash)
         Settings[data]
+      else
+        data
+      end
+    end
+
+    # Convert symbolic keys to strings in a hash recursively
+    def stringify_keys(data)
+      if data.is_a?(Hash)
+        Hash[
+          data.map do |k, v|
+            [k.respond_to?(:to_sym) ? k.to_s : k, stringify_keys(v)]
+          end
+        ]
       else
         data
       end
