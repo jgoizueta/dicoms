@@ -242,7 +242,7 @@ class DicomS
     sequence.metadata.merge! axial_scale: axial_scale
     sequence.metadata.merge! coronal_scale: coronal_scale
     sequence.metadata.merge! sagittal_scale: sagittal_scale
-    options.save_settings sequence.metadata
+    options.save_settings 'projection', sequence.metadata
     progress.finish
   end
 

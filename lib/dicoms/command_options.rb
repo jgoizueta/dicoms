@@ -29,10 +29,10 @@ class DicomS
       options.is_a?(CommandOptions) ? options : CommandOptions.new(options)
     end
 
-    def save_settings(data)
+    def save_settings(command, data)
       if @settings_io
         @settings_io.update do |settings|
-          settings.merge data
+          settings.merge command.to_sym => data
         end
       end
     end
