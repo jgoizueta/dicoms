@@ -172,7 +172,9 @@ class DicomS
     i = 0
 
     float_v = nil
-    if options.to_h.values_at(:axial, :coronal, :sagittal).include?('aap')
+    if options.to_h.values_at(:axial, :coronal, :sagittal).any?{ |sel|
+         aggregate_projection_includes?(sel, 'aap')
+       }
       # It's gonna take memory... (a whole lot of precious memory)
       float_v ||= volume.to_type(NArray::SFLOAT)
       # To enhance result contrast we will apply a gamma of x**4
@@ -181,60 +183,78 @@ class DicomS
       float_v.mul! float_v
     end
     if aggregate_projection?(options[:axial])
-      if options[:axial] == 'aap'
+      views = []
+      if aggregate_projection_includes?(options[:axial], 'aap')
         slice = accumulated_attenuation_projection(
           float_v, Z_AXIS, sequence.metadata.lim_max, maxz
         ).to_type(volume.typecode)
-      else # 'mip' ('*' is also handled here)
-        slice = maximum_intensity_projection(volume, Z_AXIS)
+        views << ['aap', slice]
       end
-      output_image = output_file_name(extract_dir, 'axial_', "#{options[:axial]}")
-      axial_scale = save_pixels slice, output_image,
-        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-        dx: sequence.metadata.dx, dy: sequence.metadata.dy,
-        maxcols: options.maxcols || options.max_x_pixels,
-        maxrows: options.maxrows || options.max_y_pixels,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+      if aggregate_projection_includes?(options[:axial], 'mip')
+        slice = maximum_intensity_projection(volume, Z_AXIS)
+        views << ['mip', slice]
+      end
+      views.each do |view, slice|
+        output_image = output_file_name(extract_dir, 'axial_', view)
+        axial_scale = save_pixels slice, output_image,
+          bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+          dx: sequence.metadata.dx, dy: sequence.metadata.dy,
+          maxcols: options.maxcols || options.max_x_pixels,
+          maxrows: options.maxrows || options.max_y_pixels,
+          normalize: NORMALIZE_PROJECTION_IMAGES
+      end
       i += 1
       progress.update_subprocess i
     end
     if aggregate_projection?(options[:coronal])
-      if options[:coronal] == 'aap'
+      views = []
+      if aggregate_projection_includes?(options[:coronal], 'aap')
         # It's gonna take memory... (a whole lot of precious memory)
         float_v ||= volume.to_type(NArray::SFLOAT)
         slice = accumulated_attenuation_projection(
           float_v, Y_AXIS, sequence.metadata.lim_max, maxy
         ).to_type(volume.typecode)
-      else # 'mip' ('*' is also handled here)
-         slice = maximum_intensity_projection(volume, Y_AXIS)
+        views << ['aap', slice]
       end
-      output_image = output_file_name(extract_dir, 'coronal_', "#{options[:coronal]}")
-      coronal_scale = save_pixels slice, output_image,
-        bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-        dx: sequence.metadata.dx, dy: sequence.metadata.dz,
-        maxcols: options.maxcols || options.max_x_pixels,
-        maxrows: options.maxrows || options.max_z_pixels,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+      if aggregate_projection_includes?(options[:coronal], 'mip')
+         slice = maximum_intensity_projection(volume, Y_AXIS)
+         views << ['mip', slice]
+      end
+      views.each do |view, slice|
+        output_image = output_file_name(extract_dir, 'coronal_', view)
+        coronal_scale = save_pixels slice, output_image,
+          bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+          dx: sequence.metadata.dx, dy: sequence.metadata.dz,
+          maxcols: options.maxcols || options.max_x_pixels,
+          maxrows: options.maxrows || options.max_z_pixels,
+          normalize: NORMALIZE_PROJECTION_IMAGES
+      end
       i += 1
       progress.update_subprocess i
     end
     if aggregate_projection?(options[:sagittal])
-      if options[:sagittal] == 'aap'
+      views = []
+      if aggregate_projection_includes?(options[:sagittal], 'aap')
         # It's gonna take memory... (a whole lot of precious memory)
         float_v ||= volume.to_type(NArray::SFLOAT)
         slice = accumulated_attenuation_projection(
           float_v, X_AXIS, sequence.metadata.lim_max, maxx
         ).to_type(volume.typecode)
-      else # 'mip' ('*' is also handled here)
-        slice = maximum_intensity_projection(volume, X_AXIS)
+        views << ['aap', slice]
       end
-      output_image = output_file_name(extract_dir, 'sagittal_', "#{options[:sagittal]}")
-      sagittal_scale = save_pixels slice, output_image,
-        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-        dx: sequence.metadata.dy, dy: sequence.metadata.dz,
-        maxcols: options.maxcols || options.max_y_pixels,
-        maxrows: options.maxrows || options.max_z_pixels,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+      if aggregate_projection_includes?(options[:sagittal], 'mip')
+        slice = maximum_intensity_projection(volume, X_AXIS)
+        views << ['mip', slice]
+      end
+      views.each do |view, slice|
+        output_image = output_file_name(extract_dir, 'sagittal_', view)
+        sagittal_scale = save_pixels slice, output_image,
+          bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+          dx: sequence.metadata.dy, dy: sequence.metadata.dz,
+          maxcols: options.maxcols || options.max_y_pixels,
+          maxrows: options.maxrows || options.max_z_pixels,
+          normalize: NORMALIZE_PROJECTION_IMAGES
+      end
       i += 1
       progress.update_subprocess i
     end
@@ -283,11 +303,13 @@ class DicomS
   end
 
   def aggregate_projection?(axis_selection)
-    ['*', 'mip', 'aap'].include?(axis_selection)
+    axis_selection && axis_selection.split(',').any? { |sel|
+      ['*', 'mip', 'aap'].include?(sel)
+    }
   end
 
   def full_projection?(axis_selection)
-    axis_selection == '*'
+    axis_selection && axis_selection.split(',').any? { |sel| sel == '*' }
   end
 
   def single_slice_projection?(axis_selection)
@@ -295,11 +317,17 @@ class DicomS
   end
 
   def center_slice_projection?(axis_selection)
-    axis_selection && axis_selection.downcase == 'c'
+    axis_selection && axis_selection.split(',').any? { |sel| sel.downcase == 'c' }
   end
 
   def middle_slice_projection?(axis_selection)
-    axis_selection && axis_selection.downcase == 'm'
+    axis_selection && axis_selection.split(',').any? { |sel| sel.downcase == 'm' }
+  end
+
+  def aggregate_projection_includes?(axis_selection, projection)
+    axis_selection && axis_selection.split(',').any? { |sel|
+      sel == projection
+    }
   end
 
   def save_pixels(pixels, output_image, options = {})
