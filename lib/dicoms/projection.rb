@@ -27,6 +27,10 @@ class DicomS
        bits = 16
     end
 
+    scaling = projection_scaling(sequence.metadata, options)
+    sequence.metadata.merge! scaling
+    scaling = Settings[scaling]
+
     reverse_x = sequence.metadata.reverse_x.to_i == 1
     reverse_y = sequence.metadata.reverse_y.to_i == 1
     reverse_z = sequence.metadata.reverse_z.to_i == 1
@@ -128,39 +132,31 @@ class DicomS
 
     n = axial_zs.size + sagittal_xs.size + coronal_ys.size
 
-    axial_scale = coronal_scale = sagittal_scale = nil
-
     progress.begin_subprocess 'generating_slices', -70, n if n > 0
     axial_zs.each_with_index do |(z, suffix), i|
       slice = volume[true, true, z]
       output_image = output_file_name(extract_dir, 'axial_', suffix || z.to_s)
-      axial_scale = save_pixels slice, output_image,
+      save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-        dx: sequence.metadata.dx, dy: sequence.metadata.dy,
-        maxcols: options.maxcols || options.max_x_pixels,
-        maxrows: options.maxrows || options.max_y_pixels,
+        cols: scaling.scaled_nx, rows: scaling.scaled_ny,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess i
     end
     sagittal_xs.each_with_index do |(x, suffix), i|
       slice = volume[x, true, true]
       output_image = output_file_name(extract_dir, 'sagittal_', suffix || x.to_s)
-      sagittal_scale = save_pixels slice, output_image,
+      save_pixels slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-        dx: sequence.metadata.dy, dy: sequence.metadata.dz,
-        maxcols: options.maxcols || options.max_y_pixels,
-        maxrows: options.maxrows || options.max_z_pixels,
+        cols: scaling.scaled_ny, rows: scaling.scaled_nz,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess axial_zs.size + i
     end
     coronal_ys.each_with_index do |(y, suffix), i|
       slice = volume[true, y, true]
       output_image = output_file_name(extract_dir, 'coronal_', suffix || y.to_s)
-      corotnal_scale save_pixels slice, output_image,
+      save_pixels slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-        dx: sequence.metadata.dx, dy: sequence.metadata.dz,
-        maxcols: options.maxcols || options.max_x_pixels,
-        maxrows: options.maxrows || options.max_z_pixels,
+        cols: scaling.scaled_nx, rows: scaling.scaled_nz,
         normalize: NORMALIZE_PROJECTION_IMAGES
       progress.update_subprocess axial_zs.size + sagittal_xs.size + i
     end
@@ -196,11 +192,9 @@ class DicomS
       end
       views.each do |view, slice|
         output_image = output_file_name(extract_dir, 'axial_', view)
-        axial_scale = save_pixels slice, output_image,
+        save_pixels slice, output_image,
           bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-          dx: sequence.metadata.dx, dy: sequence.metadata.dy,
-          maxcols: options.maxcols || options.max_x_pixels,
-          maxrows: options.maxrows || options.max_y_pixels,
+          cols: scaling.scaled_nx, rows: scaling.scaled_ny,
           normalize: NORMALIZE_PROJECTION_IMAGES
       end
       i += 1
@@ -222,11 +216,9 @@ class DicomS
       end
       views.each do |view, slice|
         output_image = output_file_name(extract_dir, 'coronal_', view)
-        coronal_scale = save_pixels slice, output_image,
+        save_pixels slice, output_image,
           bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-          dx: sequence.metadata.dx, dy: sequence.metadata.dz,
-          maxcols: options.maxcols || options.max_x_pixels,
-          maxrows: options.maxrows || options.max_z_pixels,
+          cols: scaling.scaled_nx, rows: scaling.scaled_nz,
           normalize: NORMALIZE_PROJECTION_IMAGES
       end
       i += 1
@@ -248,20 +240,15 @@ class DicomS
       end
       views.each do |view, slice|
         output_image = output_file_name(extract_dir, 'sagittal_', view)
-        sagittal_scale = save_pixels slice, output_image,
+        save_pixels slice, output_image,
           bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-          dx: sequence.metadata.dy, dy: sequence.metadata.dz,
-          maxcols: options.maxcols || options.max_y_pixels,
-          maxrows: options.maxrows || options.max_z_pixels,
+          cols: scaling.scaled_ny, rows: scaling.scaled_nz,
           normalize: NORMALIZE_PROJECTION_IMAGES
       end
       i += 1
       progress.update_subprocess i
     end
     float_v = nil
-    sequence.metadata.merge! axial_scale: axial_scale
-    sequence.metadata.merge! coronal_scale: coronal_scale
-    sequence.metadata.merge! sagittal_scale: sagittal_scale
     options.save_settings 'projection', sequence.metadata
     progress.finish
   end
@@ -330,17 +317,67 @@ class DicomS
     }
   end
 
+  def projection_scaling(data, options = {})
+    sx = sy = sz = 1
+
+    nx = data.nx
+    ny = data.ny
+    nz = data.nz
+    dx = data.dx
+    dy = data.dy
+    dz = data.dz
+
+    unless dx == dy && dy == dz
+      # need to cope with different scales in different axes.
+      # will always produce shrink factors (<1)
+      ref = [dx, dy, dz].max.to_f
+      sx = dx/ref
+      sy = dy/ref
+      sz = dz/ref
+    end
+
+    scaled_nx = (nx*sx).round
+    scaled_ny = (ny*sy).round
+    scaled_nz = (nz*sz).round
+
+    # further shrinking may be needed to avoid any projection
+    # to be larger thant the maximum image size
+    # Axis X is the columns of axial an coronal views
+    # Axis Y is the rows of axial and the columns of sagittal
+    # Axis Z is the rows of coronal and sagittal views
+    max_nx = [scaled_nx, options.max_x_pixels, options[:maxcols]].compact.min
+    if scaled_nx > max_nx
+      scaled_nx = max_nx
+      sx = scaled_nx/nx.to_f
+    end
+
+    max_ny = [scaled_ny, options.max_y_pixels, options[:maxcols], options[:maxrows]].compact.min
+    if scaled_ny > max_ny
+      scaled_ny = max_ny
+      sy = scaled_ny/ny.to_f
+    end
+
+    max_nz = [scaled_nz, options.max_z_pixels, options[:maxrows]].compact.min
+    if scaled_nz > max_nz
+      scaled_nz = max_nz
+      sz = scaled_nz/nz.to_f
+    end
+
+    {
+      scale_x: sx, scale_y: sy, scale_z: sz,
+      scaled_nx: scaled_nx, scaled_ny: scaled_ny, scaled_nz: scaled_nz
+    }
+  end
+
   def save_pixels(pixels, output_image, options = {})
     bits = options[:bit_depth] || 16
     reverse_x = options[:reverse_x]
     reverse_y = options[:reverse_y]
     normalize = options[:normalize]
-    # pixel aspect:
-    dx = options[:dx] || 1
-    dy = options[:dy] || 1
+
     # max image size
-    maxcols = options[:maxcols]
-    maxrows = options[:maxrows]
+    scaled_columns = options[:cols]
+    scaled_rows = options[:rows]
 
     columns, rows = pixels.shape
 
@@ -372,34 +409,10 @@ class DicomS
     image.flip! if reverse_y
     image.flop! if reverse_x
     image = image.normalize if normalize
-    scalex = scaley = 1
-    if dx != dy || maxcols || maxrows
-      sx = sx0 = image.columns
-      sy = sy0 = image.rows
-      maxcols ||= sx0
-      maxrows ||= sy0
-      if dx > dy
-        sy *= dy.to_f/dx
-      else
-        sy *= dx.to_f/dy
-      end
-      if sx > maxcols || sy > maxrows
-        fx = maxcols.to_f/sx
-        fy = maxrows.to_f/sy
-        f = [fx, fy].min
-        sx *= f
-        sy *= f
-      end
-      sx = sx.round
-      sy = sy.round
-      if sx != sx0 || sy != sy0
-        image = image.resize(sx, sy)
-        scalex = sx/sx0.to_f
-        scaley = sy/sy0.to_f
-      end
+    if scaled_columns != columns || scaled_rows != rows
+      image = image.resize(scaled_columns, scaled_rows)
     end
     image.write(output_image)
-    [scalex, scaley]
   end
 
 end
