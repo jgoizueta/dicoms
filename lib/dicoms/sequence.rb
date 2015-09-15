@@ -85,7 +85,6 @@ class DicomS
         # don't trust the file ordering; use the instance number to ordering
         # this requires reading all the files in advance
         compute_metadata! true
-        reorder!
       else
         # if information about the series size (nx, ny, nz)
         # and the axis orientation (reverse_x, reverse_y, reverse_z)
