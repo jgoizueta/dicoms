@@ -7,7 +7,11 @@ class DicomS
     progress.begin_subprocess 'reading_metadata', 2
 
     strategy = define_transfer(options, :window)
-    sequence = Sequence.new(dicom_directory, transfer: strategy)
+    sequence = Sequence.new(
+      dicom_directory,
+      transfer: strategy,
+      reorder: options[:reorder]
+    )
 
     progress.begin_subprocess 'extracting_images', 100, sequence.size
 

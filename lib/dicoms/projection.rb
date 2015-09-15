@@ -14,7 +14,11 @@ class DicomS
 
     # We can save on memory use by using 8-bit processing, so it will be the default
     strategy = define_transfer(options, :window, output: :byte)
-    sequence = Sequence.new(dicom_directory, transfer: strategy)
+    sequence = Sequence.new(
+      dicom_directory,
+      transfer: strategy,
+      reorder: options[:reorder]
+    )
 
     extract_dir = options.path_option(
       :output, File.join(File.expand_path(dicom_directory), 'images')

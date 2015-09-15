@@ -81,27 +81,34 @@ class DicomS
 
       # TODO: reuse existing metadata in options (via settings)
 
-      # if information about the series size (nx, ny, nz)
-      # and the axis orientation (reverse_x, reverse_y, reverse_z)
-      # is available here we can set the @roi now and avoid
-      # processing slices outside it. (in that case the
-      # metadata won't consider those slices, e.g. for minimum/maximum
-      # pixel values)
-      if options[:nx] && options[:ny] && options[:nz] &&
-         options.to_h.has_key?(:reverse_x) &&
-         options.to_h.has_key?(:reverse_y) &&
-         options.to_h.has_key?(:reverse_z)
-        @metadata.merge!(
-          nx: options[:nx], ny: options[:ny], nz: options[:nz],
-          reverse_x: options[:reverse_x],
-          reverse_y: options[:reverse_y],
-          reverse_z: options[:reverse_z]
-        )
-        set_cropping_volume!
-        cropping_set = true
+      if options[:reorder]
+        # don't trust the file ordering; use the instance number to ordering
+        # this requires reading all the files in advance
+        compute_metadata! true
+        reorder!
+      else
+        # if information about the series size (nx, ny, nz)
+        # and the axis orientation (reverse_x, reverse_y, reverse_z)
+        # is available here we can set the @roi now and avoid
+        # processing slices outside it. (in that case the
+        # metadata won't consider those slices, e.g. for minimum/maximum
+        # pixel values)
+        if options[:nx] && options[:ny] && options[:nz] &&
+           options.to_h.has_key?(:reverse_x) &&
+           options.to_h.has_key?(:reverse_y) &&
+           options.to_h.has_key?(:reverse_z)
+          @metadata.merge!(
+            nx: options[:nx], ny: options[:ny], nz: options[:nz],
+            reverse_x: options[:reverse_x],
+            reverse_y: options[:reverse_y],
+            reverse_z: options[:reverse_z]
+          )
+          set_cropping_volume!
+          cropping_set = true
+        end
+        compute_metadata!
       end
 
-      compute_metadata!
       set_cropping_volume! unless cropping_set
     end
 
@@ -204,14 +211,21 @@ class DicomS
     end
 
     def reorder!
+      # This may invalidate dz and the cropped selection of slices
       visit_all
       @visited.sort_by! { |name, study, series, instance| [study, series, instance] }
       @files = @visited.map { |name, study, series, instance| name }
     end
 
+    def needs_reordering?
+      visit_all
+      @visited.sort_by! { |name, study, series, instance| [study, series, instance] }
+      @files != @visited.map { |name, study, series, instance| name }
+    end
+
     private
 
-    def compute_metadata!
+    def compute_metadata!(all = false)
       first_i = nil
       last_i = nil
       first_md = last_md = nil
@@ -222,21 +236,6 @@ class DicomS
 
       @visitors.push -> (dicom, i, filename) {
         unless @visited[i]
-          if !first_i || first_i > i
-            first_i = i
-            first_md = single_dicom_metadata(dicom)
-          elsif !last_i || last_i < i
-            last_i = i
-            last_md = single_dicom_metadata(dicom)
-          end
-          unless last_i
-            last_i = first_i
-            last_md = first_md
-          end
-          unless first_i
-            first_i = last_i
-            first_md = first_md
-          end
           unless lim_min
             if @strategy
               lim_min, lim_max = @strategy.min_max_limits(dicom)
@@ -266,6 +265,21 @@ class DicomS
           study_id  ||= slice_study_id
           series_id ||= slice_series_id
           @visited[i] = [filename, slice_study_id, slice_series_id, slice_image_id]
+          if !first_i || @visited[first_i].last > slice_image_id
+            first_i = i
+            first_md = single_dicom_metadata(dicom)
+          elsif !last_i || @visited[last_i].last < slice_image_id
+            last_i = i
+            last_md = single_dicom_metadata(dicom)
+          end
+          unless last_i
+            last_i = first_i
+            last_md = first_md
+          end
+          unless first_i
+            first_i = last_i
+            first_md = first_md
+          end
         end
       }
 
@@ -280,6 +294,12 @@ class DicomS
       @metadata.merge! min: min, max: max, rescaled: rescaled ? 1 : 0
       @metadata.merge! bits: bits, signed: signed ? 1 : 0
       @metadata.merge! slope: slope, intercept: intercept
+
+      if all
+        reorder!
+        first_i = 0
+        lsat_i = @files.size - 1
+      end
 
       # make sure at least two different DICOM files are visited
       if first_i == last_i

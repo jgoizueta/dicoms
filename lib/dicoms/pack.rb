@@ -10,7 +10,12 @@ class DicomS
     progress.begin_subprocess 'reading_metadata', 2
 
     strategy = define_transfer(options, :sample)
-    sequence = Sequence.new(dicom_directory, transfer: strategy, roi: options[:roi])
+    sequence = Sequence.new(
+      dicom_directory,
+      transfer: strategy,
+      roi: options[:roi],
+      reorder: options[:reorder]
+    )
 
     output_name = (options.path_option(:output) || File.basename(dicom_directory)) + '.mkv'
     pack_dir = options.path_option(:tmp, 'dspack_tmp') # TODO: better default
