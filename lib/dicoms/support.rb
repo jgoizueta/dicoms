@@ -84,6 +84,7 @@ class DicomS
     # by the numeric value.
     # DICOM files with non-numeric names are returned last ordered by name.
     def find_dicom_files(dicom_directory)
+      # TODO: look recursively inside nested directories
       if File.directory?(dicom_directory)
         dicom_directory = normalized_path(dicom_directory)
         files = Dir.glob(File.join(dicom_directory, '*')).select{|f| dicom?(f)}
@@ -95,9 +96,22 @@ class DicomS
       non_numeric = []
       numeric_files = []
       files.each do |name|
-        match = /\d+/.match(File.basename(name))
+        base = File.basename(name)
+        match = /\d+/.match(base)
         if match
-          numeric_files << [match[0], name]
+          number = match[0]
+          if base =~ /\AI\d\d\d\d\d\d\d\Z/
+            # funny scheme found in some DICOMS:
+            # the I is followed by the instance number (unpadded), then right
+            # padded with zeros, then increased (which affects the last digit)
+            # while it coincides with some prior value.
+            match = /I(\d\d\d\d)/.match(base)
+            number = match[1]
+            number = number[0...-1] while number.size > 1 && number[-1] == '0'
+            number_zeros = name[-1].to_i
+            number << '0'*number_zeros
+          end
+          numeric_files << [number, name]
         else
           non_numeric << name
         end
