@@ -1,6 +1,7 @@
 # DicomS: DICOM Series toolkit
 
-DicomS is a Ruby toolkit for working with DICOM (CT/MRI) Series (image sequences that compose a volume).
+DicomS is a Ruby toolkit for working with DICOM (CT/MRI) Series
+(image sequences that compose a volume of density information).
 
 It can be used through a command line interface
 by using the `dicoms` executable script, or
@@ -24,17 +25,24 @@ Or install it yourself as:
 
 ### Requirements
 
-* FFmpeg
-* ImageMagick
+* [FFmpeg](https://www.ffmpeg.org/) (the command line tools).
+* [ImageMagick](http://www.imagemagick.org/) (the library whichs is used by RMagick)
 
 ## Usage
 
-TODO: Write usage instructions here
+The `dicoms` executable provides the following commands:
+
+* Extract images: `dicoms extract DICOM-DIR ...`
+* Generate projected images (on axial, sagittal and coronal planes):
+  `dicoms project DICOM-DIR ...`
+* Pack a DICOM series in compact form: `dicoms pack DICOM-DIR ...`
+* Unpack a packed DICOM series: `dicoms unpack PACKED-FILE ...`
+
+Use the command to get further help.
 
 ## License
 
-Copyright (c) 2015 Javier Goizueta - All Rights Reserved
+Copyright (c) 2015 Javier Goizueta
 
-* Unauthorized copying of this file, via any medium is strictly prohibited
-* Proprietary and confidential
-* Written by Javier Goizueta <jgoizueta@gmail.com>, April 2015
+This software is licensed under the
+[GNU General Public License](./LICENSE.md) version 3.
