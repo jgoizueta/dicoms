@@ -1,5 +1,3 @@
-Copyright (c) 2015 Javier Goizueta - All Rights Reserved
-
 GNU GENERAL PUBLIC LICENSE
 ==========================
 
