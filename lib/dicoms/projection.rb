@@ -69,13 +69,14 @@ class DicomS
       # volume = NArray.sint(maxx, maxy, maxz)
       volume = NArray.int(maxx, maxy, maxz)
     end
+    maxv = volume.max
     keeping_path do
       sequence.each do |dicom, z, file|
         slice = sequence.dicom_pixels(dicom, unsigned: true)
         volume[true, true, z] = slice
         if center_slice_projection?(options[:axial])
           minz_contents, maxz_contents = update_min_max_contents(
-            z, slice.max, maxy, minz_contents, maxz_contents
+            z, slice.max, maxv, minz_contents, maxz_contents
           )
         end
         progress.update_subprocess z
@@ -85,7 +86,7 @@ class DicomS
     if center_slice_projection?(options[:coronal])
       (0...maxy).each do |y|
         miny_contents, maxy_contents = update_min_max_contents(
-          y, volume[true, y, true].max, maxy, miny_contents, maxy_contents
+          y, volume[true, y, true].max, maxv, miny_contents, maxy_contents
         )
       end
     end
@@ -93,7 +94,7 @@ class DicomS
     if center_slice_projection?(options[:sagittal])
       (0...maxz).each do |z|
         minz_contents, maxz_contents = update_min_max_contents(
-          z, volume[true, true, z].max, maxz, minz_contents, maxz_contents
+          z, volume[true, true, z].max, maxv, minz_contents, maxz_contents
         )
       end
     end
@@ -129,7 +130,7 @@ class DicomS
     elsif middle_slice_projection?(options[:coronal])
       coronal_ys = [[maxy/2, 'm']]
     elsif full_projection?(options[:coronal])
-      coronal_ys = (0...maxx)
+      coronal_ys = (0...maxy)
     else
       coronal_ys = []
     end
@@ -275,8 +276,7 @@ class DicomS
     v.max(axis)
   end
 
-  def accumulated_attenuation_projection(float_v, axis, max_output_level, max=500)
-    k = 0.02
+  def accumulated_attenuation_projection(float_v, axis, max_output_level, max=500, k = 0.02)
     if ADJUST_AAP_FOR_WIDTH
       k *= 500.0/max
     end
