@@ -1,10 +1,6 @@
 require 'rmagick'
 
 class DicomS
-  NORMALIZE_PROJECTION_IMAGES = true
-  ASSIGN_IMAGE_PIXELS_AS_ARRAY = true
-  ADJUST_AAP_FOR_WIDTH = true
-
   # Extract all projected views (all slices in the three axis,
   # plus aap and mip projectios)
   def explode(dicom_directory, options = {})
