@@ -70,8 +70,8 @@ class DicomS
       when :unsigned
         min, max = Transfer.min_max_limits(dicom)
         if min < 0
-          min = 0
           max -= min
+          min = 0
         end
         [min, max]
       else
@@ -320,20 +320,7 @@ class DicomS
     end
 
     def min_max(sequence)
-      min_max_limits(sequence.first)
-    end
-
-    def map_to_output(dicom, data, min, max)
-      if @rescale
-        intercept = dicom_rescale_intercept(dicom)
-        slope = dicom_rescale_slope(dicom)
-        if slope != 1 || intercept != 0
-          return super
-        end
-      end
-      data = dicom_narray(dicom)
-      data.add! -min if min < 0
-      data
+      Transfer.min_max_limits(sequence.first)
     end
   end
 end
