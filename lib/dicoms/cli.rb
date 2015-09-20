@@ -185,6 +185,54 @@ class DicomS
       0
     end
 
+    desc "explode DICOM-DIR", "extract all projected images from a DICOM sequence"
+    option :output,   desc: 'output directory', aliases: '-o'
+    option :transfer,   desc: 'transfer method', aliases: '-t', default: 'window'
+    # TODO: add :mip_transfer
+    # option :byte,       desc: 'transfer as bytes', aliases: '-b'
+    option :center,     desc: 'center (window transfer)', aliases: '-c'
+    option :width,      desc: 'window (window transfer)', aliases: '-w'
+    option :ignore_min, desc: 'ignore minimum (global/first/sample transfer)', aliases: '-i'
+    option :samples,    desc: 'number of samples (sample transfer)', aliases: '-s'
+    option :min,   desc: 'minimum value (fixed transfer)'
+    option :max,   desc: 'maximum value (fixed transfer)'
+    option :max_x_pixels, desc: 'maximum number of pixels in the X direction'
+    option :max_y_pixels, desc: 'maximum number of pixels in the Y direction'
+    option :max_z_pixels, desc: 'maximum number of pixels in the Z direction'
+    option :reorder, desc: 'reorder slices based on instance number'
+    def explode(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      settings = {} # TODO: ...
+      unless File.directory?(dicom_dir)
+        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+        say options
+      end
+      if options.settings_io || options.settings
+        cmd_options = CommandOptions[
+          settings: options.settings,
+          settings_io: options.settings_io,
+          output: options.output,
+          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
+          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
+          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          reorder: options.reorder,
+        ]
+      else
+        cmd_options = CommandOptions[
+          transfer: DicomS.transfer_options(options),
+          output: options.output,
+          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
+          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
+          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          reorder: options.reorder,
+        ]
+      end
+      packer = DicomS.new(settings)
+      packer.explode(dicom_dir, cmd_options)
+      # rescue => raise Error?
+      0
+    end
+
     desc "Remap DICOM-DIR", "convert DICOM pixel values"
     option :output,     desc: 'output directory', aliases: '-o'
     option :transfer,   desc: 'transfer method', aliases: '-t', default: 'identity'

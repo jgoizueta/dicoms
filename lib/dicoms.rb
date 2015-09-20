@@ -19,6 +19,7 @@ require "dicoms/unpack"
 require "dicoms/stats"
 require "dicoms/projection"
 require "dicoms/remap"
+require "dicoms/explode"
 
 class DicomS
 
