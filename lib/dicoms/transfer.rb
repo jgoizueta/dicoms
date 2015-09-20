@@ -17,6 +17,12 @@ class DicomS
   # values which are mapped to the output limits.
   # These values may be raw or rescaled depending on the min_max_rescaled? method
   #
+  # Derived classes should also provide a method
+  #
+  #     transfer_rescaled_pixels(dicom, data, min, max)
+  #
+  # To apply the transfer conversion to data which has been only rescaled
+  #
   class Transfer
     USE_DATA = false
 
@@ -96,6 +102,7 @@ class DicomS
     def initialize(options = {})
       @center = options[:center]
       @width  = options[:width]
+      @float_arith = options[:float] || FLOAT_MAPPING
       super options
     end
 
@@ -116,6 +123,14 @@ class DicomS
       map_to_output dicom, data, min, max
     end
 
+    # Apply the transfer map to data which has been only rescaled
+    def transfer_rescaled_pixels(dicom, pixels, min, max)
+      # clip pixels to min, max # wouldn't be needed if map_to_output did output clipping...
+      pixels[pixels < min] = min
+      pixels[pixels > max] = max
+      map_to_output dicom, pixels, min, max
+    end
+
     # def image(dicom, min, max)
     #   center = (min + max)/2
     #   width = max - min
@@ -128,7 +143,7 @@ class DicomS
       output_min, output_max = min_max_limits(dicom)
       output_range = output_max - output_min
       input_range  = max - min
-      float_arith = FLOAT_MAPPING || output_range < input_range
+      float_arith = @float_arith || output_range < input_range
       data_type = data.typecode
       data = data.to_type(NArray::SFLOAT) if float_arith
       data.sbt! min
@@ -179,6 +194,7 @@ class DicomS
       @rescale = options[:rescale]
       @ignore_min = options[:ignore_min]
       @extension_factor = options[:extend] || 0.0
+      @float_arith = options[:float] || FLOAT_MAPPING
       super options
     end
 
@@ -196,16 +212,12 @@ class DicomS
       [minimum, maximum]
     end
 
-    def min_max_rescaled?
-      @rescale
-    end
-
-    def processed_data(dicom, min, max)
+    # Apply the transfer map to data which has been only rescaled
+    def transfer_rescaled_pixels(dicom, data, min, max)
       output_min, output_max = min_max_limits(dicom)
       output_range = output_max - output_min
       input_range  = max - min
-      float_arith = FLOAT_MAPPING || output_range < input_range
-      data = dicom_narray(dicom, level: false, remap: @rescale)
+      float_arith = @float_arith || output_range < input_range
       data_type = data.typecode
       data = data.to_type(NArray::SFLOAT) if float_arith
       data.sbt! min
@@ -215,6 +227,15 @@ class DicomS
       data[data > output_max] = output_max
       data = data.to_type(data_type) if float_arith
       data
+    end
+
+    def processed_data(dicom, min, max)
+      data = dicom_narray(dicom, level: false, remap: @rescale)
+      transfer_rescaled_pixels dicom, data, min, max
+    end
+
+    def min_max_rescaled?
+      @rescale
     end
 
     private
