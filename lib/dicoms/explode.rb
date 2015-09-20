@@ -247,6 +247,9 @@ class DicomS
     # The pow() function will be computed as:
     # pow(x, y) = exp(y*log(x))
     #
+    # TODO: consider this alternative:
+    # f(x) = (factor*x - x)/(2*factor*x - factor - 1
+    #)
     factor = factor.round
     k = 2**(factor-1)
     lo = data <= 0.5
