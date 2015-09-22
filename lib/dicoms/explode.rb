@@ -61,13 +61,7 @@ class DicomS
     minz_contents = maxz
     maxz_contents = 0
 
-    if full_projection?(options[:axial]) || full_projection?(options[:coronal]) || full_projection?(options[:sagittal])
-      percent = 65
-    else
-      percent = 90
-    end
-    progress.begin_subprocess 'generating_volume', percent, maxz
-
+    progress.begin_subprocess 'generating_volume', 50, maxz
 
     # Load all the slices into a floating point 3D array
     volume = NArray.sfloat(maxx, maxy, maxz)
