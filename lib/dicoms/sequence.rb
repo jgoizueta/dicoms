@@ -322,8 +322,6 @@ class DicomS
 
       total_n = size
 
-      n = last_i - first_i
-
       xaxis = decode_vector(first_md.xaxis)
       yaxis = decode_vector(first_md.yaxis)
       # assert xaxis == decode_vector(last_md.xaxis)
@@ -337,7 +335,10 @@ class DicomS
       @metadata.merge! Settings[first_md]
       @metadata.zaxis = encode_vector zaxis
       @metadata.nz = total_n
-      @metadata.dz = (last_md.slice_z - first_md.slice_z).abs/n
+      # Position coordinates are assumed at the voxel's center
+      # note that we divide the coordinate span z_last - z_first
+      # by the number of slices (voxels) minus one
+      @metadata.dz = (last_md.slice_z - first_md.slice_z).abs/(last_i - first_i)
 
       if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
          yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
