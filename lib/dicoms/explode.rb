@@ -104,7 +104,7 @@ class DicomS
       save_transferred_pixels sequence, slice_transfer, slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
         cols: scaling.scaled_nx, rows: scaling.scaled_ny,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+        normalize: false
       progress.update_subprocess i
     end
     sagittal_xs.each_with_index do |x, i|
@@ -117,7 +117,7 @@ class DicomS
       save_transferred_pixels sequence, slice_transfer, slice, output_image,
         bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
         cols: scaling.scaled_ny, rows: scaling.scaled_nz,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+        normalize: false
       progress.update_subprocess axial_zs.size + i
     end
     coronal_ys.each_with_index do |y, i|
@@ -130,7 +130,7 @@ class DicomS
       save_transferred_pixels sequence, slice_transfer, slice, output_image,
         bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
         cols: scaling.scaled_nx, rows: scaling.scaled_nz,
-        normalize: NORMALIZE_PROJECTION_IMAGES
+        normalize: false
       progress.update_subprocess axial_zs.size + sagittal_xs.size + i
     end
 
@@ -142,7 +142,7 @@ class DicomS
     save_transferred_pixels sequence, mip_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
       cols: scaling.scaled_nx, rows: scaling.scaled_ny,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 1
 
     slice = maximum_intensity_projection(volume, Y_AXIS)
@@ -150,7 +150,7 @@ class DicomS
     save_transferred_pixels sequence, mip_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
       cols: scaling.scaled_nx, rows: scaling.scaled_nz,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 2
 
     slice = maximum_intensity_projection(volume, X_AXIS)
@@ -158,7 +158,7 @@ class DicomS
     save_transferred_pixels sequence, mip_transfer, slice, output_image,
       bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
       cols: scaling.scaled_ny, rows: scaling.scaled_nz,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 3
 
     # Generate AAP Projections
@@ -188,7 +188,7 @@ class DicomS
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
       cols: scaling.scaled_nx, rows: scaling.scaled_ny,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 4
 
     slice = accumulated_attenuation_projection(
@@ -200,7 +200,7 @@ class DicomS
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
       cols: scaling.scaled_nx, rows: scaling.scaled_nz,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 5
 
     slice = accumulated_attenuation_projection(
@@ -212,7 +212,7 @@ class DicomS
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
       cols: scaling.scaled_ny, rows: scaling.scaled_nz,
-      normalize: NORMALIZE_PROJECTION_IMAGES
+      normalize: true
     progress.update_subprocess 5
 
     volume = nil
