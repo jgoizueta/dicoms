@@ -219,7 +219,7 @@ class DicomS
     sequence.metadata.merge!(
       axial_first: minz_contents, axial_last: maxz_contents,
       coronal_first: miny_contents, coronal_last: maxy_contents,
-      sagittal_first: minz_contents, sagittal_last: maxz_contents
+      sagittal_first: minx_contents, sagittal_last: maxx_contents
     )
     options.save_settings 'projection', sequence.metadata
     progress.finish
