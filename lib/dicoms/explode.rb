@@ -81,6 +81,8 @@ class DicomS
     sagittal_xs = (0...maxx)
     coronal_ys = (0...maxy)
 
+    axial_zs = sagittal_xs = coronal_ys = []
+
     # Will determine first and last slice with noticeable contents in each axis
     # Slices outside the range won't be generated to save space
     # This information will also be used for the app projection
@@ -162,28 +164,20 @@ class DicomS
     progress.update_subprocess 3
 
     # Generate AAP Projections
-    vmin = volume.min
-    volume.add! -vmin
-    volume.mul! 1.0/volume.max
-
-    # apply gamma of 4 before app
-    volume.mul! volume
-    volume.mul! volume
-
-    # Image corrections
-    gamma_factor = 1.2
-    contrast_factor = 3.5
-
-    # Number of slices with non-blank contents
-    numx = maxx_contents - minx_contents + 1
-    numy = maxy_contents - miny_contents + 1
-    numz = maxz_contents - minz_contents + 1
-
-    slice = accumulated_attenuation_projection(
-      volume, Z_AXIS, 1.0, numz, 0.02
-    ).to_type(volume.typecode)
-    slice = gamma(slice, gamma_factor) if gamma_factor
-    contrast! slice, contrast_factor
+    c = dicom_window_center(sequence.first)
+    w = dicom_window_width(sequence.first)
+    dx = sequence.metadata.dx
+    dy = sequence.metadata.dy
+    dz = sequence.metadata.dz
+    numx = maxx_contents - minx_contents + 1 if minx_contents <= maxx_contents
+    numy = maxy_contents - miny_contents + 1 if miny_contents <= maxy_contents
+    numz = maxz_contents - minz_contents + 1 if minz_contents <= maxz_contents
+    daap = DynamicAap.new(
+      volume,
+      center: c, width: w, dx: dx, dy: dy, dz: dz,
+      numx: numx, numy: numy, numz: numz
+    )
+    slice = daap.view(Z_AXIS)
     output_image = output_file_name(extract_dir, 'axial_', 'aap')
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
@@ -191,11 +185,7 @@ class DicomS
       normalize: true
     progress.update_subprocess 4
 
-    slice = accumulated_attenuation_projection(
-      volume, Y_AXIS, 1.0, numy, 0.02
-    ).to_type(volume.typecode)
-    slice = gamma(slice, gamma_factor) if gamma_factor
-    contrast! slice, contrast_factor
+    slice = daap.view(Y_AXIS)
     output_image = output_file_name(extract_dir, 'coronal_', 'aap')
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
@@ -203,17 +193,13 @@ class DicomS
       normalize: true
     progress.update_subprocess 5
 
-    slice = accumulated_attenuation_projection(
-      volume, X_AXIS, 1.0, numx, 0.02
-    ).to_type(volume.typecode)
-    slice = gamma(slice, gamma_factor) if gamma_factor
-    contrast! slice, contrast_factor
+    slice = daap.view(X_AXIS)
     output_image = output_file_name(extract_dir, 'sagittal_', 'aap')
     save_transferred_pixels sequence, aap_transfer, slice, output_image,
       bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
       cols: scaling.scaled_ny, rows: scaling.scaled_nz,
       normalize: true
-    progress.update_subprocess 5
+    progress.update_subprocess 6
 
     volume = nil
     sequence.metadata.merge!(
@@ -225,38 +211,200 @@ class DicomS
     progress.finish
   end
 
-  private
-
-  def contrast!(data, factor)
-    # We use this piecewise sigmoid function:
-    #
-    # * f(x)       for x <= 1/2
-    # * 1 - f(1-x) for x > 1/2
-    #
-    # With f(x) = pow(2, factor-1)*pow(x, factor)
-    # The pow() function will be computed as:
-    # pow(x, y) = exp(y*log(x))
-    #
-    # TODO: consider this alternative:
-    # f(x) = (factor*x - x)/(2*factor*x - factor - 1
-    #)
-    factor = factor.round
-    k = 2**(factor-1)
-    lo = data <= 0.5
-    hi = data >  0.5
-    data[lo] = NMath.exp(factor*NMath.log(data[lo]))*k
-    data[hi] = (-NMath.exp(NMath.log((-data[hi]) + 1)*factor))*k+1
-    data
-  end
-
-  def gamma(data, factor)
+  def power(data, factor)
     NMath.exp(factor*NMath.log(data))
   end
 
   def save_transferred_pixels(sequence, transfer, pixels, output_image, options)
     dicom = sequence.first
     min, max = transfer.min_max(sequence)
+    puts "minmax: #{min} #{max}"
     pixels = transfer.transfer_rescaled_pixels(dicom, pixels, min, max)
+    puts "minmax: #{min} #{max} -> #{pixels.min} #{pixels.max} #{pixels.mean}"
     save_pixels pixels, output_image, options
   end
+
+  class DynamicAap
+
+    PRE_GAMMA = 8
+    SUM_NORMALIZATION = false
+    IMAGE_GAMMA = nil
+    IMAGE_ADJUSTMENT = false
+    WINDOW_BY_DEFAULT = true
+    NO_WINDOW = true
+    IMAGE_CONTRAST = nil
+
+    def initialize(data, options)
+      center = options[:center]
+      width = options[:width]
+      if center && width && !NO_WINDOW
+        # 1. Window level normalization
+        if options[:window_sigmod_gamma]
+          # 1.a using sigmod
+          gamma = options[:window_sigmod_gamma] || 3.0
+          k0 = options[:window_sigmod_k0] || 0.06
+          sigmoid = Sigmoid.new(center: center, width: width, gamma: gamma, k0: k0)
+          data = sigmoid[data]
+        elsif options[:k0] || WINDOW_BY_DEFAULT
+          # 1.b simpler linear pseudo-sigmoid
+          max = data.max
+          min = data.min
+          k0 = options[:k0] || 0.1
+          v_lo = center - width*0.5
+          v_hi = center + width*0.5
+          low_part = (data < v_lo)
+          high_part = (data > v_hi)
+          mid_part = (low_part | high_part).not
+
+          data[low_part] -= min
+          data[low_part] *= k0/(v_lo - min)
+
+          data[high_part] -= v_hi
+          data[high_part] *= k0/(max - v_hi)
+          data[high_part] += 1.0 - k0
+
+          data[mid_part] -= v_lo
+          data[mid_part] *= (1.0 - 2*k0)/width
+          data[mid_part] += k0
+        else
+          # 1.c clip to window (like 1.b with k0=0)
+          max = data.max
+          min = data.min
+          k0 = options[:k0] || 0.02
+          v_lo = center - width*0.5
+          v_hi = center + width*0.5
+
+          low_part = (data < v_lo)
+          high_part = (data > v_hi)
+          mid_part = (low_part | high_part).not
+
+          data[low_part] = 0
+          data[high_part] = 1
+
+          data[mid_part] -= v_lo
+          data[mid_part] *= 1.0/width
+        end
+      else
+        # Normalize to 0-1
+        data.add! -data.min
+        data.mul! 1.0/data.max
+      end
+
+      if PRE_GAMMA
+        if [2, 4, 8].include?(PRE_GAMMA)
+          g = PRE_GAMMA
+          while g > 1
+            data.mul! data
+            g /= 2
+          end
+        else
+          data = power(data, PRE_GAMMA)
+        end
+      end
+
+      @data = data
+      @ref_num = 512
+      @dx = options[:dx]
+      @dy = options[:dy]
+      @dz = options[:dz]
+      @numx = options[:numx] || @ref_num
+      @numy = options[:numy] || @ref_num
+      @numz = options[:numz] || @ref_num
+      @max_output_level = options[:max] || 1.0
+    end
+
+    def view(axis)
+      case axis
+      when Z_AXIS
+        d = @dz
+        num = @numz
+      when Y_AXIS
+        d = @dy
+        num = @numy
+      when X_AXIS
+        d = @dx
+        num = @numx
+      end
+
+      s = @data.sum(axis)
+      s.div! s.max if SUM_NORMALIZATION
+      s.mul! -d*@ref_num/num
+      s = NMath.exp(s)
+
+      if IMAGE_GAMMA
+        s.mul! -1
+        s.add! 1
+        s = power(s, IMAGE_GAMMA)
+        contrast! s, IMAGE_CONTRAST if IMAGE_CONTRAST
+        s.mul! @max_output_level if @max_output_level != 1
+      elsif IMAGE_ADJUSTMENT
+        s = adjust(s)
+        contrast! s, IMAGE_CONTRAST if IMAGE_CONTRAST
+        s.mul! @max_output_level if @max_output_level != 1
+      else
+        # since contrast is vertically symmetrical we can apply it
+        # to the negative image
+        contrast! s, IMAGE_CONTRAST if IMAGE_CONTRAST
+        s.mul! -@max_output_level
+        s.add! @max_output_level
+      end
+      s
+    end
+
+    private
+
+    def contrast!(data, factor)
+      # We use this piecewise sigmoid function:
+      #
+      # * f(x)       for x <= 1/2
+      # * 1 - f(1-x) for x > 1/2
+      #
+      # With f(x) = pow(2, factor-1)*pow(x, factor)
+      # The pow() function will be computed as:
+      # pow(x, y) = exp(y*log(x))
+      #
+      # TODO: consider this alternative:
+      # f(x) = (factor*x - x)/(2*factor*x - factor - 1
+      #)
+      factor = factor.round
+      k = 2**(factor-1)
+      lo = data <= 0.5
+      hi = data >  0.5
+      data[lo] = NMath.exp(factor*NMath.log(data[lo]))*k
+      data[hi] = (-NMath.exp(NMath.log((-data[hi]) + 1)*factor))*k+1
+      data
+    end
+
+    def power(data, factor)
+      NMath.exp(factor*NMath.log(data))
+    end
+
+    def adjust(pixels)
+      min = pixels.min
+      max = pixels.max
+      avg = pixels.mean
+      # pixels.sbt! min
+      # pixels.mul! 1.0/(max - min)
+      pixels.sbt! max
+      pixels.div! min - max
+
+      # HUM: target 0.7; frac: target 0.2
+      discriminator = (pixels > 0.83).count_true.to_f / (pixels > 0.5).count_true.to_f
+
+      avg_target = 1.0 - discriminator**0.9
+      x0 = 0.67
+      y0 = 0.72
+      gamma = 3.0
+      k = - x0**gamma/Math.log(1-y0)
+      avg_target = 1.0 - Math.exp(-avg_target**gamma/k)
+
+      if avg_target > 0
+        g = Math.log(avg_target)/Math.log(avg)
+        power(pixels, g)
+      else
+        pixels
+      end
+    end
+  end
+
 end

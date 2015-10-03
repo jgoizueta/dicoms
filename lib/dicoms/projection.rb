@@ -284,8 +284,10 @@ class DicomS
     v.mul! -k
     v = NMath.exp(v)
     # Invert result (from attenuation to transmission)
-    v.mul! -max_output_level
-    v.add! max_output_level
+    if max_output_level
+      v.mul! -max_output_level
+      v.add! max_output_level
+    end
     v
   end
 

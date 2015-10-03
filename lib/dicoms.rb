@@ -20,6 +20,7 @@ require "dicoms/stats"
 require "dicoms/projection"
 require "dicoms/remap"
 require "dicoms/explode"
+require "dicoms/sigmoid"
 
 class DicomS
 
