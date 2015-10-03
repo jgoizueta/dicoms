@@ -131,7 +131,7 @@ class DicomS
       dicom = DICOM::DObject.read(@files[i])
       sop_class = dicom['0002,0002'].value
       unless sop_class == '1.2.840.10008.5.1.4.1.1.2'
-        raise "Unsopported SOP Class #{sop_class}"
+        raise UnsupportedDICOM, "Unsopported SOP Class #{sop_class}"
       end
       # TODO: require known SOP Class:
       # (in tag 0002,0002, Media Storage SOP Class UID)
@@ -244,7 +244,7 @@ class DicomS
           end
           if bits
             if bits != dicom_bit_depth(dicom) || signed != dicom_signed?(dicom)
-              raise "Inconsistent slices"
+              raise InvalidDICOM, "Inconsistent slices"
             end
           else
             bits   = dicom_bit_depth(dicom)
@@ -252,7 +252,7 @@ class DicomS
           end
           if slope
             if slope != dicom_rescale_slope(dicom) || intercept != dicom_rescale_intercept(dicom)
-              raise "Inconsitent slices"
+              raise InvalidDICOM, "Inconsitent slices"
             end
           else
             slope = dicom_rescale_slope(dicom)
@@ -343,7 +343,7 @@ class DicomS
       if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
          yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
          zaxis[0] != 0 || zaxis[1] != 0 || zaxis[2].abs != 1
-        raise Error, "Unsupported orientation"
+        raise UnsupportedDICOM, "Unsupported orientation"
       end
       @metadata.reverse_x = (xaxis[0] < 0) ? 1 : 0
       @metadata.reverse_y = (yaxis[1] < 0) ? 1 : 0

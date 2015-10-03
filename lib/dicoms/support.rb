@@ -1,6 +1,26 @@
 require 'matrix'
 
 class DicomS
+  class Error < RuntimeError
+    def initialize(code, *args)
+      @code = code
+      super *args
+    end
+    attr_reader :code
+  end
+
+  class UnsupportedDICOM < Error
+    def initialize(*args)
+      super 'unsupported_dicom', *args
+    end
+  end
+
+  class InvaliddDICOM < Error
+    def initialize(*args)
+      super 'invalid_dicom', *args
+    end
+  end
+
   USE_SLICE_Z = false
   METADATA_TYPES = {
     # Note: for axisx, axisy, axisz decode_vector should be used
@@ -141,7 +161,7 @@ class DicomS
       ny = dicom.num_rows # dicom.rows.value.to_i
 
       unless dicom.samples_per_pixel.value.to_i == 1
-        raise "Invalid DICOM format"
+        raise InvalidDICOM, "Invalid image format"
       end
       Settings[
         dx: dx, dy: dy, x: x, y: y, z: z,
@@ -169,7 +189,7 @@ class DicomS
       file = File.basename(name)
       number_pattern = /\d+/
       match = number_pattern.match(file)
-      raise "Invalid DICOM file name" unless match
+      raise UnsupportedDICOM, "Invalid DICOM file name" unless match
       number = match[0]
       file = file.sub(number_pattern, "%d")
       if match.begin(0) == 0
