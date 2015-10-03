@@ -341,7 +341,7 @@ class DicomS
       @metadata.dz = (last_md.slice_z - first_md.slice_z).abs/(last_i - first_i)
 
       if xaxis[0].abs != 1 || xaxis[1] != 0 || xaxis[2] != 0 ||
-         yaxis[0] != 0 || yaxis[1] != 1 || yaxis[2] != 0 ||
+         yaxis[0] != 0 || yaxis[1].abs != 1 || yaxis[2] != 0 ||
          zaxis[0] != 0 || zaxis[1] != 0 || zaxis[2].abs != 1
         raise UnsupportedDICOM, "Unsupported orientation"
       end
