@@ -81,8 +81,6 @@ class DicomS
     sagittal_xs = (0...maxx)
     coronal_ys = (0...maxy)
 
-    axial_zs = sagittal_xs = coronal_ys = []
-
     # Will determine first and last slice with noticeable contents in each axis
     # Slices outside the range won't be generated to save space
     # This information will also be used for the app projection
@@ -218,9 +216,7 @@ class DicomS
   def save_transferred_pixels(sequence, transfer, pixels, output_image, options)
     dicom = sequence.first
     min, max = transfer.min_max(sequence)
-    puts "minmax: #{min} #{max}"
     pixels = transfer.transfer_rescaled_pixels(dicom, pixels, min, max)
-    puts "minmax: #{min} #{max} -> #{pixels.min} #{pixels.max} #{pixels.mean}"
     save_pixels pixels, output_image, options
   end
 
@@ -229,7 +225,7 @@ class DicomS
     PRE_GAMMA = 8
     SUM_NORMALIZATION = false
     IMAGE_GAMMA = nil
-    IMAGE_ADJUSTMENT = false
+    IMAGE_ADJUSTMENT = true
     WINDOW_BY_DEFAULT = true
     NO_WINDOW = true
     IMAGE_CONTRAST = nil
