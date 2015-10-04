@@ -21,6 +21,7 @@ require "dicoms/projection"
 require "dicoms/remap"
 require "dicoms/explode"
 require "dicoms/sigmoid"
+require "dicoms/info"
 
 class DicomS
 

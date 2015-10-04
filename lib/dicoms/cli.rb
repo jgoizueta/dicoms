@@ -129,6 +129,16 @@ class DicomS
       0
     end
 
+    desc "Information", "Show DICOM metadata"
+    option :output,   desc: 'output directory or file', aliases: '-o'
+    def info(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      settings = {} # TODO: ...
+      dicoms = DicomS.new(settings)
+      dicoms.info dicom_dir, output: options.output
+      0
+    end
+
     desc "projection DICOM-DIR", "extract projected images from a DICOM sequence"
     option :output,   desc: 'output directory', aliases: '-o'
     option :axial,    desc: 'N for single slice, * all, C center, mip or aap for volumetric aggregation'
