@@ -126,6 +126,21 @@ class DicomS
       puts "  Minimum level: #{stats[:min]}"
       puts "  Next minimum level: #{stats[:next_min]}"
       puts "  Maximum level: #{stats[:max]}"
+      puts "Histogram:"
+      dicoms.print_histogram *stats[:histogram], compact: true
+      0
+    end
+
+    desc "Histogram", "Histogram of one or more DICOM files"
+    option :width,   desc: 'bin width', aliases: '-w'
+    option :compact,   desc: 'compact format', aliases: '-c'
+    def histogram(dicom_dir)
+      DICOM.logger.level = Logger::FATAL
+      settings = {} # TODO: ...
+      dicoms = DicomS.new(settings)
+      width = options.width && options.width.to_f
+      compact = !!options.compact
+      dicoms.histogram dicom_dir, bin_width: width, compact: compact
       0
     end
 

@@ -1,6 +1,5 @@
 class DicomS
   def stats(dicom_directory, options = {})
-    # TODO: compute histogram of levels
     dicom_files = find_dicom_files(dicom_directory)
     if dicom_files.empty?
       raise "ERROR: no se han encontrado archivos DICOM en: \n #{dicom_directory}"
@@ -24,7 +23,8 @@ class DicomS
       n: n,
       min: mins.min,
       next_min: next_mins.min,
-      max: maxs.max
+      max: maxs.max,
+      histogram: compute_histogram(dicom_directory, options)
     }
   end
 end
