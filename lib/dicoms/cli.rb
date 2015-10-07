@@ -1,6 +1,26 @@
 require 'thor'
 
 class DicomS
+
+  def self.handle_errors(options)
+    options = CommandOptions[options]
+    progress = Progress.new(nil, options)
+    if progress.persistent?
+      begin
+        yield
+        0
+      rescue Error => error
+        progress.error! error.code, error.to_s
+        1
+      rescue => error
+        progress.error! 'unknown', error.to_s
+        2
+      end
+    else
+      yield
+    end
+  end
+
   class CLI < Thor
     check_unknown_options!
 
@@ -35,10 +55,6 @@ class DicomS
         ignore_min: true
       }
       settings = {} # TODO: ...
-      unless File.directory?(dicom_dir)
-        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
-        say options
-      end
       cmd_options = CommandOptions[
         settings: options.settings,
         settings_io: options.settings_io,
@@ -47,10 +63,14 @@ class DicomS
         reorder: options.reorder,
         dicom_metadata: true
       ]
-      packer = DicomS.new(settings)
-      packer.pack dicom_dir, cmd_options
-      # rescue => raise Error?
-      0
+      DicomS.handle_errors(cmd_options) do
+        packer = DicomS.new(settings)
+        unless File.directory?(dicom_dir)
+          raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+          say options
+        end
+        packer.pack dicom_dir, cmd_options
+      end
     end
 
     desc "unpack dspack", "unpack a dspack file"
@@ -59,20 +79,21 @@ class DicomS
     # TODO: parameters for dicom regeneration
     def unpack(dspack)
       DICOM.logger.level = Logger::FATAL
-      unless File.file?(dspack)
-        raise Error, set_color("File not found: #{dspack}", :red)
-        say options
-      end
       settings = {} # TODO: ...
-      packer = DicomS.new(settings)
-      packer.unpack(
-        dspack,
+      cmd_options = {
         settings: options.settings,
         settings_io: options.settings_io,
         output: options.output,
         dicom_output: options.dicom
-      )
-      # rescue => raise Error?
+      }
+      DicomS.handle_errors(cmd_options) do
+        packer = DicomS.new(settings)
+        unless File.file?(dspack)
+          raise Error, set_color("File not found: #{dspack}", :red)
+          say options
+        end
+        packer.unpack dspack, cmd_options
+      end
       0
     end
 
@@ -91,10 +112,6 @@ class DicomS
     def extract(dicom_dir)000
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
-      unless File.exists?(dicom_dir)
-        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
-        say options
-      end
 
       raw = options.raw
       if options.big
@@ -105,15 +122,19 @@ class DicomS
         little_endian = true
       end
 
-      packer = DicomS.new(settings)
-      packer.extract(
-        dicom_dir,
+      cmd_options = {
         transfer: DicomS.transfer_options(options),
         output: options.output,
         raw: raw, big_endian: big_endian, little_endian: little_endian
-      )
-      # rescue => raise Error?
-      0
+      }
+      DicomS.handle_errors(cmd_options) do
+        packer = DicomS.new(settings)
+        unless File.exists?(dicom_dir)
+          raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+          say options
+        end
+        packer.extract(dicom_dir, cmd_options)
+      end
     end
 
     desc "Level stats", "Level limits of one or more DICOM files"
@@ -174,10 +195,6 @@ class DicomS
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
-      unless File.directory?(dicom_dir)
-        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
-        say options
-      end
       if options.settings_io || options.settings
         cmd_options = CommandOptions[
           settings: options.settings,
@@ -201,13 +218,17 @@ class DicomS
           reorder: options.reorder,
         ]
       end
-      unless cmd_options.axial || options.sagittal || options.coronal
-        raise Error, "Must specify at least one projection (axial/sagittal/coronal)"
+      DicomS.handle_errors(cmd_options) do
+        unless File.directory?(dicom_dir)
+          raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+          say options
+        end
+        unless cmd_options.axial || options.sagittal || options.coronal
+          raise Error, "Must specify at least one projection (axial/sagittal/coronal)"
+        end
+        packer = DicomS.new(settings)
+        packer.projection(dicom_dir, cmd_options)
       end
-      packer = DicomS.new(settings)
-      packer.projection(dicom_dir, cmd_options)
-      # rescue => raise Error?
-      0
     end
 
     desc "explode DICOM-DIR", "extract all projected images from a DICOM sequence"
@@ -252,10 +273,10 @@ class DicomS
           reorder: options.reorder,
         ]
       end
-      packer = DicomS.new(settings)
-      packer.explode(dicom_dir, cmd_options)
-      # rescue => raise Error?
-      0
+      DicomS.handle_errors(cmd_options) do
+        packer = DicomS.new(settings)
+        packer.explode(dicom_dir, cmd_options)
+      end
     end
 
     desc "Remap DICOM-DIR", "convert DICOM pixel values"
@@ -272,18 +293,18 @@ class DicomS
     def remap(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
-      unless File.directory?(dicom_dir)
-        raise Error, set_color("Directory not found: #{dicom_dir}", :red)
-        say options
-      end
-      packer = DicomS.new(settings)
-      packer.remap(
-        dicom_dir,
+      cmd_options =  {
         transfer: DicomS.transfer_options(options),
         output: options.output
-      )
-      # rescue => raise Error?
-      0
+      }
+      DicomS.handle_errors(cmd_options) do
+        unless File.directory?(dicom_dir)
+          raise Error, set_color("Directory not found: #{dicom_dir}", :red)
+          say options
+        end
+        packer = DicomS.new(settings)
+        packer.remap(dicom_dir, cmd_options)
+      end
     end
   end
 

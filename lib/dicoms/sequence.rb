@@ -79,6 +79,9 @@ class DicomS
       @strategy = options[:transfer]
       @metadata = Settings[version: 'DSPACK1']
 
+      if @files.empty?
+        raise InvaliddDICOM, 'No DICOM files found'
+      end
       # TODO: reuse existing metadata in options (via settings)
 
       if options[:reorder]

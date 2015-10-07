@@ -6,14 +6,18 @@ class DicomS
       @progress = options[:initial_progress] || 0
       # TODO: if filename == :console, show progress on the console
       if filename
-        @file = SharedSettings.new(
-          filename,
-          replace_contents: {
-            process: description,
-            subprocess: options[:subprocess],
-            progress: @progress
+        if description
+          init_options = {
+            replace_contents: {
+              process: description,
+              subprocess: options[:subprocess],
+              progress: @progress
+            }
           }
-        )
+        else
+          init_options = {}
+        end
+        @file = SharedSettings.new(filename, init_options)
       else
         @file = nil
       end
@@ -21,6 +25,16 @@ class DicomS
     end
 
     attr_reader :progress
+
+    def persistent?
+      !!@file
+    end
+
+    def error!(code, message)
+      @file.update do |data|
+        data.merge error: code, error_message: message
+      end
+    end
 
     def finished?
       @progress >= 100
