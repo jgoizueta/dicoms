@@ -24,6 +24,12 @@ class DicomS
       end
       contents = options[:replace_contents]
       write contents if contents
+      contents = options[:override_contents]
+      if contents
+        update do |data|
+          data.merge contents
+        end
+      end
     end
 
     # Read a shared file and obtain a Settings object

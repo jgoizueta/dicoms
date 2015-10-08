@@ -8,7 +8,7 @@ class DicomS
       if filename
         if description
           init_options = {
-            replace_contents: {
+            override_contents: {
               process: description,
               subprocess: options[:subprocess],
               progress: @progress
