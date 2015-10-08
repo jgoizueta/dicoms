@@ -324,8 +324,6 @@ class DicomS
   end
 
   def projection_scaling(data, options = {})
-    sx = sy = sz = 1
-
     nx = data.nx
     ny = data.ny
     nz = data.nz
@@ -333,18 +331,37 @@ class DicomS
     dy = data.dy
     dz = data.dz
 
-    unless dx == dy && dy == dz
-      # need to cope with different scales in different axes.
-      # will always produce shrink factors (<1)
-      ref = [dx, dy, dz].max.to_f
+    sx = sy = sz = 1
+    scaled_nx = nx
+    scaled_ny = ny
+    scaled_nz = nz
+
+    adjust = ->(ref) {
       sx = dx/ref
       sy = dy/ref
       sz = dz/ref
-    end
+      scaled_nx = (nx*sx).round
+      scaled_ny = (ny*sy).round
+      scaled_nz = (nz*sz).round
+    }
 
-    scaled_nx = (nx*sx).round
-    scaled_ny = (ny*sy).round
-    scaled_nz = (nz*sz).round
+    # need to cope with different scales in different axes.
+    # will always produce shrink factors (<1)
+    adjust.call [dx, dy, dz].max.to_f
+
+    # Now we may have scaled down too much; we'll avoid going below
+    # requested minimum sizes for axes and/or image dimensions.
+    # Axis X is the columns of axial an coronal views
+    # Axis Y is the rows of axial and the columns of sagittal
+    # Axis Z is the rows of coronal and sagittal views
+    min_nx = [scaled_nx, options.min_x_pixels, options[:mincols]].compact.max
+    adjust[dx*nx.to_f/min_nx] if scaled_nx < min_nx
+
+    min_ny = [scaled_ny, options.min_y_pixels, options[:mincols], options[:minrows]].compact.max
+    adjust[dy*ny.to_f/min_ny] if scaled_ny < min_ny
+
+    min_nz = [scaled_nz, options.min_z_pixels, options[:minrows]].compact.max
+    adjust[dz*nz.to_f/min_nz] if scaled_nz > min_nz
 
     # further shrinking may be needed to avoid any projection
     # to be larger thant the maximum image size
@@ -352,22 +369,13 @@ class DicomS
     # Axis Y is the rows of axial and the columns of sagittal
     # Axis Z is the rows of coronal and sagittal views
     max_nx = [scaled_nx, options.max_x_pixels, options[:maxcols]].compact.min
-    if scaled_nx > max_nx
-      scaled_nx = max_nx
-      sx = scaled_nx/nx.to_f
-    end
+    adjust[dx*nx.to_f/max_nx] if scaled_nx > max_nx
 
     max_ny = [scaled_ny, options.max_y_pixels, options[:maxcols], options[:maxrows]].compact.min
-    if scaled_ny > max_ny
-      scaled_ny = max_ny
-      sy = scaled_ny/ny.to_f
-    end
+    adjust[dy*ny.to_f/max_ny] if scaled_ny > max_ny
 
     max_nz = [scaled_nz, options.max_z_pixels, options[:maxrows]].compact.min
-    if scaled_nz > max_nz
-      scaled_nz = max_nz
-      sz = scaled_nz/nz.to_f
-    end
+    adjust[dz*nz.to_f/max_nz] if scaled_nz > max_nz
 
     {
       scale_x: sx, scale_y: sy, scale_z: sz,

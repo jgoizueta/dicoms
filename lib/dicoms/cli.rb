@@ -191,6 +191,10 @@ class DicomS
     option :max_x_pixels, desc: 'maximum number of pixels in the X direction'
     option :max_y_pixels, desc: 'maximum number of pixels in the Y direction'
     option :max_z_pixels, desc: 'maximum number of pixels in the Z direction'
+    option :maxcols, desc: 'maximum number of image columns'
+    option :maxrows, desc: 'maximum number of image rows'
+    option :mincols, desc: 'minimum number of image columns'
+    option :minrows, desc: 'minimum number of image rows'
     option :reorder, desc: 'reorder slices based on instance number'
     def projection(dicom_dir)
       DICOM.logger.level = Logger::FATAL
@@ -203,6 +207,10 @@ class DicomS
           max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
           max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
           max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          maxrows: options.maxrows && options.maxrows.to_i,
+          maxcols: options.maxcols && options.maxcols.to_i,
+          minrows: options.minrows && options.minrows.to_i,
+          mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
         ]
       else
@@ -215,6 +223,10 @@ class DicomS
           max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
           max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
           max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          maxrows: options.maxrows && options.maxrows.to_i,
+          maxcols: options.maxcols && options.maxcols.to_i,
+          minrows: options.minrows && options.minrows.to_i,
+          mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
         ]
       end
@@ -245,6 +257,10 @@ class DicomS
     option :max_x_pixels, desc: 'maximum number of pixels in the X direction'
     option :max_y_pixels, desc: 'maximum number of pixels in the Y direction'
     option :max_z_pixels, desc: 'maximum number of pixels in the Z direction'
+    option :maxcols, desc: 'maximum number of image columns'
+    option :maxrows, desc: 'maximum number of image rows'
+    option :mincols, desc: 'minimum number of image columns'
+    option :minrows, desc: 'minimum number of image rows'
     option :reorder, desc: 'reorder slices based on instance number'
     def explode(dicom_dir)
       DICOM.logger.level = Logger::FATAL
@@ -261,6 +277,10 @@ class DicomS
           max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
           max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
           max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          maxrows: options.maxrows && options.maxrows.to_i,
+          maxcols: options.maxcols && options.maxcols.to_i,
+          minrows: options.minrows && options.minrows.to_i,
+          mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
         ]
       else
@@ -270,6 +290,10 @@ class DicomS
           max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
           max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
           max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+          maxrows: options.maxrows && options.maxrows.to_i,
+          maxcols: options.maxcols && options.maxcols.to_i,
+          minrows: options.minrows && options.minrows.to_i,
+          mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
         ]
       end
