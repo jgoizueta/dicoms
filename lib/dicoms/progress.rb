@@ -11,7 +11,8 @@ class DicomS
             override_contents: {
               process: description,
               subprocess: options[:subprocess],
-              progress: @progress
+              progress: @progress,
+              error: nil
             }
           }
         else
