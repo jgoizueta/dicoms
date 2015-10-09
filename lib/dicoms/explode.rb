@@ -36,9 +36,9 @@ class DicomS
     FileUtils.mkdir_p extract_dir
 
     if sequence.metadata.lim_max <= 255
-       bits = 8
-     else
-       bits = 16
+      bits = 8
+    else
+      bits = 16
     end
 
     scaling = projection_scaling(sequence.metadata, options)
