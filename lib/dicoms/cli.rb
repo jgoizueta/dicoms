@@ -3,6 +3,7 @@ require 'thor'
 class DicomS
 
   def self.handle_errors(options)
+    return yield if options.debug
     options = CommandOptions[options]
     progress = Progress.new(nil, options)
     if progress.persistent?
@@ -37,6 +38,7 @@ class DicomS
     class_option 'verbose', type: :boolean, default: false
     class_option 'settings', type: :string, desc: 'settings (read-only) file'
     class_option 'settings_io', type: :string, desc: 'settings file'
+    class_option 'debug', type: :boolean, default: false
 
     desc "pack DICOM-DIR", "pack a DICOM directory"
     option :output,   desc: 'output file', aliases: '-o'
@@ -61,7 +63,8 @@ class DicomS
         output: options.output,
         tmp:  options.tmp,
         reorder: options.reorder,
-        dicom_metadata: true
+        dicom_metadata: true,
+        debug: options.debug
       ]
       DicomS.handle_errors(cmd_options) do
         packer = DicomS.new(settings)
@@ -84,7 +87,8 @@ class DicomS
         settings: options.settings,
         settings_io: options.settings_io,
         output: options.output,
-        dicom_output: options.dicom
+        dicom_output: options.dicom,
+        debug: options.debug
       }
       DicomS.handle_errors(cmd_options) do
         packer = DicomS.new(settings)
@@ -125,7 +129,8 @@ class DicomS
       cmd_options = {
         transfer: DicomS.transfer_options(options),
         output: options.output,
-        raw: raw, big_endian: big_endian, little_endian: little_endian
+        raw: raw, big_endian: big_endian, little_endian: little_endian,
+        debug: options.debug
       }
       DicomS.handle_errors(cmd_options) do
         packer = DicomS.new(settings)
@@ -212,6 +217,7 @@ class DicomS
           minrows: options.minrows && options.minrows.to_i,
           mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
+          debug: options.debug
         ]
       else
         cmd_options = CommandOptions[
@@ -228,6 +234,7 @@ class DicomS
           minrows: options.minrows && options.minrows.to_i,
           mincols: options.mincols && options.mincols.to_i,
           reorder: options.reorder,
+          debug: options.debug
         ]
       end
       DicomS.handle_errors(cmd_options) do
@@ -262,6 +269,11 @@ class DicomS
     option :mincols, desc: 'minimum number of image columns'
     option :minrows, desc: 'minimum number of image rows'
     option :reorder, desc: 'reorder slices based on instance number'
+    option :no_axial, desc: 'omit axial slices extraction', type: :boolean, default: false
+    option :no_coronal, desc: 'omit coronal slices extraction', type: :boolean, default: false
+    option :no_sagittal, desc: 'omit sagittal slices extraction', type: :boolean, default: false
+    option :no_mip, desc: 'omit mip projection', type: :boolean, default: false
+    option :no_aap, desc: 'omit aap projection', type: :boolean, default: false
     def explode(dicom_dir)
       DICOM.logger.level = Logger::FATAL
       settings = {} # TODO: ...
@@ -269,33 +281,27 @@ class DicomS
         raise Error, set_color("Directory not found: #{dicom_dir}", :red)
         say options
       end
-      if options.settings_io || options.settings
-        cmd_options = CommandOptions[
-          settings: options.settings,
-          settings_io: options.settings_io,
-          output: options.output,
-          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
-          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
-          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
-          maxrows: options.maxrows && options.maxrows.to_i,
-          maxcols: options.maxcols && options.maxcols.to_i,
-          minrows: options.minrows && options.minrows.to_i,
-          mincols: options.mincols && options.mincols.to_i,
-          reorder: options.reorder,
-        ]
-      else
-        cmd_options = CommandOptions[
-          transfer: DicomS.transfer_options(options),
-          output: options.output,
-          max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
-          max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
-          max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
-          maxrows: options.maxrows && options.maxrows.to_i,
-          maxcols: options.maxcols && options.maxcols.to_i,
-          minrows: options.minrows && options.minrows.to_i,
-          mincols: options.mincols && options.mincols.to_i,
-          reorder: options.reorder,
-        ]
+      cmd_options = CommandOptions[
+        settings: options.settings,
+        settings_io: options.settings_io,
+        output: options.output,
+        max_x_pixels: options.max_x_pixels && options.max_x_pixels.to_i,
+        max_y_pixels: options.max_y_pixels && options.max_y_pixels.to_i,
+        max_z_pixels: options.max_z_pixels && options.max_z_pixels.to_i,
+        maxrows: options.maxrows && options.maxrows.to_i,
+        maxcols: options.maxcols && options.maxcols.to_i,
+        minrows: options.minrows && options.minrows.to_i,
+        mincols: options.mincols && options.mincols.to_i,
+        reorder: options.reorder,
+        no_axial: options.no_axial,
+        no_coronal: options.no_coronal,
+        no_sagittal: options.no_sagittal,
+        no_mip: options.no_mip,
+        no_aap: options.no_aap,
+        debug: options.debug
+      ]
+      unless options.settings_io || options.settings
+        cmd_options.merge! transfer: DicomS.transfer_options(options)
       end
       DicomS.handle_errors(cmd_options) do
         packer = DicomS.new(settings)
@@ -319,7 +325,8 @@ class DicomS
       settings = {} # TODO: ...
       cmd_options =  {
         transfer: DicomS.transfer_options(options),
-        output: options.output
+        output: options.output,
+        debug: options.debug
       }
       DicomS.handle_errors(cmd_options) do
         unless File.directory?(dicom_dir)

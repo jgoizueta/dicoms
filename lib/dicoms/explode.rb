@@ -61,6 +61,25 @@ class DicomS
     minz_contents = maxz
     maxz_contents = 0
 
+    axial_zs = options.no_axial ? [] : (0...maxz)
+    sagittal_xs = options.no_sagittal ? [] : (0...maxx)
+    coronal_ys = options.no_coronal ? [] : (0...maxy)
+
+    # Will determine first and last slice with noticeable contents in each axis
+    # Slices outside the range won't be generated to save space
+    # This information will also be used for the app projection
+    minx_contents = maxx
+    maxx_contents = 0
+    miny_contents = maxy
+    maxy_contents = 0
+    minz_contents = maxz
+    maxz_contents = 0
+
+    n_slices = axial_zs.size + sagittal_xs.size + coronal_ys.size
+    n_projections = 0
+    n_projections += 3 unless options.no_mip
+    n_projections += 3 unless options.no_aap
+
     progress.begin_subprocess 'generating_volume', 50, maxz
 
     # Load all the slices into a floating point 3D array
@@ -76,24 +95,8 @@ class DicomS
     maxv = volume.max
 
     # Generate slices
-
-    axial_zs = (0...maxz)
-    sagittal_xs = (0...maxx)
-    coronal_ys = (0...maxy)
-
-    # Will determine first and last slice with noticeable contents in each axis
-    # Slices outside the range won't be generated to save space
-    # This information will also be used for the app projection
-    minx_contents = maxx
-    maxx_contents = 0
-    miny_contents = maxy
-    maxy_contents = 0
-    minz_contents = maxz
-    maxz_contents = 0
-
-    n = axial_zs.size + sagittal_xs.size + coronal_ys.size
-
-    progress.begin_subprocess 'generating_slices', -70, n if n > 0
+    slices_percent = n_projections > 0 ? -70 : 100
+    progress.begin_subprocess 'generating_slices', slices_percent, n_slices if n_slices > 0
     axial_zs.each_with_index do |z, i|
       slice = volume[true, true, z]
       minz_contents, maxz_contents = update_min_max_contents(
@@ -134,70 +137,82 @@ class DicomS
       progress.update_subprocess axial_zs.size + sagittal_xs.size + i
     end
 
-    progress.begin_subprocess 'generating_projections', 100, 6
+    progress.begin_subprocess 'generating_projections', 100, n_projections
 
-    # Generate MIP projections
-    slice = maximum_intensity_projection(volume, Z_AXIS)
-    output_image = output_file_name(extract_dir, 'axial_', 'mip')
-    save_transferred_pixels sequence, mip_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-      cols: scaling.scaled_nx, rows: scaling.scaled_ny,
-      normalize: true
-    progress.update_subprocess 1
+    projection_count = 0
 
-    slice = maximum_intensity_projection(volume, Y_AXIS)
-    output_image = output_file_name(extract_dir, 'coronal_', 'mip')
-    save_transferred_pixels sequence, mip_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-      cols: scaling.scaled_nx, rows: scaling.scaled_nz,
-      normalize: true
-    progress.update_subprocess 2
+    unless options.no_mip
+      # Generate MIP projections
+      slice = maximum_intensity_projection(volume, Z_AXIS)
+      output_image = output_file_name(extract_dir, 'axial_', 'mip')
+      save_transferred_pixels sequence, mip_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        cols: scaling.scaled_nx, rows: scaling.scaled_ny,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
 
-    slice = maximum_intensity_projection(volume, X_AXIS)
-    output_image = output_file_name(extract_dir, 'sagittal_', 'mip')
-    save_transferred_pixels sequence, mip_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-      cols: scaling.scaled_ny, rows: scaling.scaled_nz,
-      normalize: true
-    progress.update_subprocess 3
+      slice = maximum_intensity_projection(volume, Y_AXIS)
+      output_image = output_file_name(extract_dir, 'coronal_', 'mip')
+      save_transferred_pixels sequence, mip_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        cols: scaling.scaled_nx, rows: scaling.scaled_nz,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
 
-    # Generate AAP Projections
-    c = dicom_window_center(sequence.first)
-    w = dicom_window_width(sequence.first)
-    dx = sequence.metadata.dx
-    dy = sequence.metadata.dy
-    dz = sequence.metadata.dz
-    numx = maxx_contents - minx_contents + 1 if minx_contents <= maxx_contents
-    numy = maxy_contents - miny_contents + 1 if miny_contents <= maxy_contents
-    numz = maxz_contents - minz_contents + 1 if minz_contents <= maxz_contents
-    daap = DynamicAap.new(
-      volume,
-      center: c, width: w, dx: dx, dy: dy, dz: dz,
-      numx: numx, numy: numy, numz: numz
-    )
-    slice = daap.view(Z_AXIS)
-    output_image = output_file_name(extract_dir, 'axial_', 'aap')
-    save_transferred_pixels sequence, aap_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
-      cols: scaling.scaled_nx, rows: scaling.scaled_ny,
-      normalize: true
-    progress.update_subprocess 4
+      slice = maximum_intensity_projection(volume, X_AXIS)
+      output_image = output_file_name(extract_dir, 'sagittal_', 'mip')
+      save_transferred_pixels sequence, mip_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        cols: scaling.scaled_ny, rows: scaling.scaled_nz,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
+    end
 
-    slice = daap.view(Y_AXIS)
-    output_image = output_file_name(extract_dir, 'coronal_', 'aap')
-    save_transferred_pixels sequence, aap_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
-      cols: scaling.scaled_nx, rows: scaling.scaled_nz,
-      normalize: true
-    progress.update_subprocess 5
+    unless options.no_aap
+      # Generate AAP Projections
+      c = dicom_window_center(sequence.first)
+      w = dicom_window_width(sequence.first)
+      dx = sequence.metadata.dx
+      dy = sequence.metadata.dy
+      dz = sequence.metadata.dz
+      numx = maxx_contents - minx_contents + 1 if minx_contents <= maxx_contents
+      numy = maxy_contents - miny_contents + 1 if miny_contents <= maxy_contents
+      numz = maxz_contents - minz_contents + 1 if minz_contents <= maxz_contents
+      daap = DynamicAap.new(
+        volume,
+        center: c, width: w, dx: dx, dy: dy, dz: dz,
+        numx: numx, numy: numy, numz: numz
+      )
+      slice = daap.view(Z_AXIS)
+      output_image = output_file_name(extract_dir, 'axial_', 'aap')
+      save_transferred_pixels sequence, aap_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: reverse_y,
+        cols: scaling.scaled_nx, rows: scaling.scaled_ny,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
 
-    slice = daap.view(X_AXIS)
-    output_image = output_file_name(extract_dir, 'sagittal_', 'aap')
-    save_transferred_pixels sequence, aap_transfer, slice, output_image,
-      bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
-      cols: scaling.scaled_ny, rows: scaling.scaled_nz,
-      normalize: true
-    progress.update_subprocess 6
+      slice = daap.view(Y_AXIS)
+      output_image = output_file_name(extract_dir, 'coronal_', 'aap')
+      save_transferred_pixels sequence, aap_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: reverse_x, reverse_y: !reverse_z,
+        cols: scaling.scaled_nx, rows: scaling.scaled_nz,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
+
+      slice = daap.view(X_AXIS)
+      output_image = output_file_name(extract_dir, 'sagittal_', 'aap')
+      save_transferred_pixels sequence, aap_transfer, slice, output_image,
+        bit_depth: bits, reverse_x: !reverse_y, reverse_y: !reverse_z,
+        cols: scaling.scaled_ny, rows: scaling.scaled_nz,
+        normalize: true
+      projection_count += 1
+      progress.update_subprocess projection_count
+    end
 
     volume = nil
     sequence.metadata.merge!(
