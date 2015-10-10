@@ -365,5 +365,31 @@ class DicomS
       ts = DICOM::LIBRARY.uid(dicom.transfer_syntax)
       ts.name if ts.compressed_pixels?
     end
+
+    def terminal_size
+      if $stdout.respond_to?(:tty?) && $stdout.tty? && $stdout.respond_to?(:winsize)
+        $stdout.winsize
+      else
+        size = [ENV['LINES'] || ENV['ROWS'], ENV['COLUMNS']]
+        if size[1].to_i > 0
+          size
+        else
+          if defined?(Readline) && Readline.respond_to?(:get_screen_size)
+            size = Readline.get_screen_size
+            if size[1].to_i > 0
+              size
+            elsif ENV['ANSICON'] =~ /\((.*)x(.*)\)/
+              size = [$2, $1]
+              if size[1].to_i > 0
+                size
+              else
+                [27, 80]
+              end
+            end
+          end
+        end
+      end
+    end
+
   end
 end

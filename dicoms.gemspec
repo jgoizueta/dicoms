@@ -27,7 +27,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'thor', '~> 0.19'
   spec.add_dependency 'solver', '>= 0.2.0'
   spec.add_dependency 'histogram', '~> 0.2.4'
-  spec.add_dependency 'pry', '~> 0.10.2'
 
   spec.add_development_dependency "bundler", "~> 1.10"
   spec.add_development_dependency "rake", "~> 10.0"

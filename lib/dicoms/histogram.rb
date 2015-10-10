@@ -1,5 +1,4 @@
 require 'histogram/narray'
-require 'pry'
 
 class DicomS
   def histogram(dicom_directory, options = {})
@@ -31,7 +30,7 @@ class DicomS
     bin_labels = bins.to_a.map { |v| v.round.to_s }
     label_width = bin_labels.map(&:size).max
     sep = ": "
-    bar_width  = Pry::Terminal.size!.last - label_width - sep.size
+    bar_width  = terminal_size.last.to_i - label_width - sep.size
     div = [1, freqs.max / bar_width.to_f].max
     compact = true
     empty = false
