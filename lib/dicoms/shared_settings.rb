@@ -27,6 +27,7 @@ class DicomS
       contents = options[:override_contents]
       if contents
         update do |data|
+          data ||= {}
           data.merge contents
         end
       end
